@@ -46,7 +46,7 @@ var normal_map_sampler: sampler;
 @group(1) @binding(11)
 var height_map_texture: texture_2d<f32>;
 @group(1) @binding(12)
-var height_map_sampler: texture_2d<f32>;
+var height_map_sampler: sampler;
 
 struct FragmentInput {
     @builtin(front_facing) is_front: bool,
@@ -57,51 +57,26 @@ struct FragmentInput {
 
 // NOTE: This ensures that the world_normal is normalized and if
 // vertex tangents and normal maps then normal mapping may be applied.
+#ifdef VERTEX_TANGENTS
+#ifdef PARALLAXMATERIAL_NORMAL_MAP
 fn prepare_normal_parallax(
     standard_material_flags: u32,
     world_normal: vec3<f32>,
-#ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
-    world_tangent: vec4<f32>,
-#endif
-#endif
-    uv: vec2<f32>,
     is_front: bool,
+    world_tangent: vec4<f32>,
+    uv: vec2<f32>,
 ) -> vec3<f32> {
-    // NOTE: The mikktspace method of normal mapping explicitly requires that the world normal NOT
-    // be re-normalized in the fragment shader. This is primarily to match the way mikktspace
-    // bakes vertex tangents and normal maps so that this is the exact inverse. Blender, Unity,
-    // Unreal Engine, Godot, and more all use the mikktspace method. Do not change this code
-    // unless you really know what you are doing.
-    // http://www.mikktspace.com/
     var N: vec3<f32> = world_normal;
-
-#ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
-    // NOTE: The mikktspace method of normal mapping explicitly requires that these NOT be
-    // normalized nor any Gram-Schmidt applied to ensure the vertex normal is orthogonal to the
-    // vertex tangent! Do not change this code unless you really know what you are doing.
-    // http://www.mikktspace.com/
     var T: vec3<f32> = world_tangent.xyz;
     var B: vec3<f32> = world_tangent.w * cross(N, T);
-#endif
-#endif
 
     if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_DOUBLE_SIDED_BIT) != 0u) {
         if (!is_front) {
             N = -N;
-#ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
             T = -T;
             B = -B;
-#endif
-#endif
         }
     }
-
-#ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
-    // Nt is the tangent-space normal.
     var Nt = textureSample(normal_map_texture, normal_map_sampler, uv).rgb;
     if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_TWO_COMPONENT_NORMAL_MAP) != 0u) {
         // Only use the xy components and derive z for 2-component normal maps.
@@ -114,27 +89,66 @@ fn prepare_normal_parallax(
     if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_FLIP_NORMAL_MAP_Y) != 0u) {
         Nt.y = -Nt.y;
     }
-    // NOTE: The mikktspace method of normal mapping applies maps the tangent-space normal from
-    // the normal map texture in this way to be an EXACT inverse of how the normal map baker
-    // calculates the normal maps so there is no error introduced. Do not change this code
-    // unless you really know what you are doing.
-    // http://www.mikktspace.com/
     N = normalize(Nt.x * T + Nt.y * B + Nt.z * N);
-#endif
-#endif
 
     return N;
 }
+#endif
+#else
+fn prepare_normal(
+    standard_material_flags: u32,
+    world_normal: vec3<f32>,
+    is_front: bool,
+) -> vec3<f32> {
+    var N: vec3<f32> = normalize(world_normal);
+    if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_DOUBLE_SIDED_BIT) != 0u) {
+        if (!is_front) { N = -N; }
+    }
+    return N;
+}
+#endif
 
+#ifdef VERTEX_TANGENTS
+#ifndef PARALLAXMATERIAL_NORMAL_MAP
+fn prepare_normal_parallax(
+    standard_material_flags: u32,
+    world_normal: vec3<f32>,
+    is_front: bool,
+) -> vec3<f32> {
+    var N: vec3<f32> = normalize(world_normal);
+    if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_DOUBLE_SIDED_BIT) != 0u) {
+        if (!is_front) { N = -N; }
+    }
+    return N;
+}
+#endif
+#endif
 
+fn parallaxed_texture(
+    height_depth: f32,
+    uv: vec2<f32>,
+    V: vec3<f32>,
+) -> vec2<f32> {
+    let height_depth = 0.08;
+    // The vector from camera to position
+    let initial_height = textureSample(height_map_texture, height_map_sampler, uv).r;
+    // original parallax mapping uses V.xy / V.z, removing V.z is offset limiting,
+    // and reduces artifacts
+    let texture_offset = -height_depth * initial_height * V.xy ;
+    return uv + texture_offset;
+}
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
+    let is_orthographic = view.projection[3].w == 1.0;
+    let V = calculate_view(in.world_position, is_orthographic);
+    let uv =  parallaxed_texture(material.height_depth, in.uv, V);
     var output_color: vec4<f32> = material.base_color;
 #ifdef VERTEX_COLORS
     output_color = output_color * in.color;
 #endif
     if ((material.flags & STANDARD_MATERIAL_FLAGS_BASE_COLOR_TEXTURE_BIT) != 0u) {
-        output_color = output_color * textureSample(base_color_texture, base_color_sampler, in.uv);
+        let texture_color = textureSample(base_color_texture, base_color_sampler, uv);
+        output_color = output_color * texture_color;
     }
 
     // NOTE: Unlit bit not set means == 0 is true, so the true case is if lit
@@ -151,7 +165,7 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         // TODO use .a for exposure compensation in HDR
         var emissive: vec4<f32> = material.emissive;
         if ((material.flags & STANDARD_MATERIAL_FLAGS_EMISSIVE_TEXTURE_BIT) != 0u) {
-            emissive = vec4<f32>(emissive.rgb * textureSample(emissive_texture, emissive_sampler, in.uv).rgb, 1.0);
+            emissive = vec4<f32>(emissive.rgb * textureSample(emissive_texture, emissive_sampler, uv).rgb, 1.0);
         }
         pbr_input.material.emissive = emissive;
 
@@ -168,7 +182,7 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
 
         var occlusion: f32 = 1.0;
         if ((material.flags & STANDARD_MATERIAL_FLAGS_OCCLUSION_TEXTURE_BIT) != 0u) {
-            occlusion = textureSample(occlusion_texture, occlusion_sampler, in.uv).r;
+            occlusion = textureSample(occlusion_texture, occlusion_sampler, uv).r;
         }
         pbr_input.occlusion = occlusion;
 
@@ -176,20 +190,20 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         pbr_input.world_position = in.world_position;
         pbr_input.world_normal = in.world_normal;
 
-        pbr_input.is_orthographic = view.projection[3].w == 1.0;
+        pbr_input.is_orthographic = is_orthographic;
 
         pbr_input.N = prepare_normal_parallax(
             material.flags,
             in.world_normal,
+            in.is_front,
 #ifdef VERTEX_TANGENTS
 #ifdef PARALLAXMATERIAL_NORMAL_MAP
             in.world_tangent,
+            uv,
 #endif
 #endif
-            in.uv,
-            in.is_front,
         );
-        pbr_input.V = calculate_view(in.world_position, pbr_input.is_orthographic);
+        pbr_input.V = V;
 
         output_color = tone_mapping(pbr(pbr_input));
     }

@@ -1,6 +1,4 @@
-use bevy::{
-    asset::AssetServerSettings, prelude::*, render::camera::ScalingMode, window::close_on_esc,
-};
+use bevy::{asset::AssetServerSettings, prelude::*, window::close_on_esc};
 use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_paramap::*;
 
@@ -22,6 +20,10 @@ fn main() {
     .add_plugins(DefaultPlugins)
     .add_plugin(WorldInspectorPlugin::new())
     .add_plugin(ParallaxMaterialPlugin)
+    .insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 0.9,
+    })
     .add_startup_system(setup)
     .add_system(spin_cube)
     .add_system(close_on_esc);
@@ -43,31 +45,48 @@ fn spin_cube(time: Res<Time>, mut query: Query<&mut Transform, With<Spin>>) {
 fn setup(
     mut cmd: Commands,
     mut mats: ResMut<Assets<ParallaxMaterial>>,
+    mut std_mats: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     assets: Res<AssetServer>,
 ) {
-    // Orthographic camera
+    // Camera
     cmd.spawn_bundle(Camera3dBundle {
-        projection: OrthographicProjection {
-            scale: 3.0,
-            scaling_mode: ScalingMode::FixedVertical(2.0),
-            ..default()
-        }
-        .into(),
         transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
     // light
     cmd.spawn_bundle(PointLightBundle {
-        transform: Transform::from_xyz(3.0, 8.0, 5.0),
+        transform: Transform::from_xyz(1.8, 0.7, -1.1),
         point_light: PointLight {
-            intensity: 3000.0,
+            intensity: 226.0,
+            shadows_enabled: true,
             ..default()
         },
         ..default()
+    })
+    .with_children(|cmd| {
+        let sphere = shape::Icosphere {
+            radius: 0.05,
+            subdivisions: 3,
+        };
+        cmd.spawn_bundle(PbrBundle {
+            mesh: meshes.add(sphere.into()),
+            ..default()
+        });
     });
 
+    // Plane
+    cmd.spawn_bundle(PbrBundle {
+        mesh: meshes.add(shape::Plane { size: 10.0 }.into()),
+        material: std_mats.add(StandardMaterial {
+            perceptual_roughness: 0.45,
+            reflectance: 0.18,
+            ..Color::rgb_u8(0, 80, 0).into()
+        }),
+        transform: Transform::from_xyz(0.0, -1.0, 0.0),
+        ..default()
+    });
     // Cube
     let mut cube: Mesh = shape::Cube { size: 1.0 }.into();
     cube.generate_tangents().unwrap();
