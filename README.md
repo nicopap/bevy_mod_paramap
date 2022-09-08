@@ -25,7 +25,7 @@ This crate's implementation uses Relief Parallax mapping with self occlusion.
   - [X] default bevy PBR reproduction
   - [X] basic parallax mapping
   - [X] offset limiting
-  - [ ] steep parallax mapping
+  - [X] steep parallax mapping
   - [ ] relief parallax mapping
   - [ ] parallax occlusion mapping
   - [ ] Self shadowing

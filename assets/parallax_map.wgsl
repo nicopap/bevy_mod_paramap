@@ -128,20 +128,44 @@ fn parallaxed_texture(
     height_depth: f32,
     uv: vec2<f32>,
     V: vec3<f32>,
-) -> vec2<f32> {
-    let height_depth = 0.08;
-    // The vector from camera to position
-    let initial_height = textureSample(height_map_texture, height_map_sampler, uv).r;
-    // original parallax mapping uses V.xy / V.z, removing V.z is offset limiting,
-    // and reduces artifacts
-    let texture_offset = -height_depth * initial_height * V.xy ;
-    return uv + texture_offset;
+) -> vec3<f32> {
+    let MAX_LOOPS: i32 = 16;
+    let height_depth = 0.2;
+    let min_layers = 5.0;
+    let max_layers = 35.0;
+    let num_layers = mix(max_layers, min_layers, abs(dot(vec3<f32>(0.0, 0.0, 1.0), V)));
+    let layer_height = 1.0 / num_layers;
+    var current_layer_height = 0.0;
+    let dtex = height_depth * V.xy / V.z / num_layers;
+    var current_texture_coords = uv;
+    var height_from_texture = textureSample(
+        height_map_texture,
+        height_map_sampler,
+        current_texture_coords
+    ).r;
+    for (var i: i32 = 0; i < MAX_LOOPS; i++) {
+        current_layer_height += layer_height;
+        current_texture_coords -= dtex;
+        height_from_texture = textureSample(
+            height_map_texture,
+            height_map_sampler,
+            current_texture_coords
+        ).r;
+        if (height_from_texture <= current_layer_height) {
+            break
+        }
+    }
+    
+    return vec3<f32>(current_texture_coords, current_layer_height);
 }
+
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let is_orthographic = view.projection[3].w == 1.0;
     let V = calculate_view(in.world_position, is_orthographic);
     let uv =  parallaxed_texture(material.height_depth, in.uv, V);
+    let height_depth = uv.z;
+    let uv = uv.xy;
     var output_color: vec4<f32> = material.base_color;
 #ifdef VERTEX_COLORS
     output_color = output_color * in.color;

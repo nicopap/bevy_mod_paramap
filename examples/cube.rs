@@ -22,7 +22,7 @@ fn main() {
     .add_plugin(ParallaxMaterialPlugin)
     .insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 0.9,
+        brightness: 0.2,
     })
     .add_startup_system(setup)
     .add_system(spin_cube)
@@ -51,7 +51,7 @@ fn setup(
 ) {
     // Camera
     cmd.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
