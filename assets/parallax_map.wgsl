@@ -127,12 +127,22 @@ fn prepare_normal_parallax(
 fn parallaxed_texture(
     height_depth: f32,
     uv: vec2<f32>,
+    // The vector from camera to the surface of material
     V: vec3<f32>,
 ) -> vec3<f32> {
-    let MAX_LOOPS: i32 = 16;
-    let height_depth = 0.2;
-    let min_layers = 5.0;
-    let max_layers = 35.0;
+    let NUM_SEARCHES: i32 = 5;
+
+    // Steep parallax mapping
+    // split the height map into `num_layers` layers,
+    // When V hits the surface of object (excluding displacement),
+    // if not bellow or on surface including displacement (textureSample), then
+    // look forward (-= dtex) according to V and distance between hit surface and
+    // height map surface, repeat until bellow surface.
+    
+    // where `num_layers` is selected smartly between `min_layers` and
+    // `max_layers` according to the steepness of V.
+    let min_layers = 2.0;
+    let max_layers = 25.0;
     let num_layers = mix(max_layers, min_layers, abs(dot(vec3<f32>(0.0, 0.0, 1.0), V)));
     let layer_height = 1.0 / num_layers;
     var current_layer_height = 0.0;
@@ -143,7 +153,7 @@ fn parallaxed_texture(
         height_map_sampler,
         current_texture_coords
     ).r;
-    for (var i: i32 = 0; i < MAX_LOOPS; i++) {
+    while (height_from_texture > current_layer_height) {
         current_layer_height += layer_height;
         current_texture_coords -= dtex;
         height_from_texture = textureSample(
@@ -151,8 +161,32 @@ fn parallaxed_texture(
             height_map_sampler,
             current_texture_coords
         ).r;
-        if (height_from_texture <= current_layer_height) {
-            break
+    }
+    
+    // Relief mapping
+    // "refine" the rough result from the steep parallax mapping
+    // with a binary search between the layer selected by steep parallax
+    // and next one of point closest to height map surface.
+    // This eliminates the jaggy step artifacts from steep parallax
+    var dtex = dtex / 2.0;
+    var dheight = layer_height / 2.0;
+    current_texture_coords += dtex;
+    current_layer_height -= dheight;
+    for (var i: i32 = 0; i < NUM_SEARCHES; i++) {
+        dtex = dtex / 2.0;
+        dheight /= 2.0;
+        
+        height_from_texture = textureSample(
+            height_map_texture,
+            height_map_sampler,
+            current_texture_coords
+        ).r;
+        if (height_from_texture > current_layer_height) {
+            current_texture_coords -= dtex;
+            current_layer_height += dheight;
+        } else {
+            current_texture_coords += dtex;
+            current_layer_height -= dheight;
         }
     }
     

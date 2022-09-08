@@ -276,7 +276,7 @@ impl Default for ParallaxMaterial {
             alpha_mode: AlphaMode::Opaque,
             depth_bias: 0.0,
             height_map: Handle::default(),
-            height_depth: 0.5,
+            height_depth: 0.1,
         }
     }
 }
