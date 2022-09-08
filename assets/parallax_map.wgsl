@@ -14,12 +14,17 @@ struct ParallaxMaterial {
     perceptual_roughness: f32,
     metallic: f32,
     reflectance: f32,
-    // 'flags' is a bit field indicating various options. u32 is 32 bits so we have up to 32 options.
     flags: u32,
     alpha_cutoff: f32,
     height_depth: f32,
+    max_height_layers: f32,
 };
 
+struct FragmentInput {
+    @builtin(front_facing) is_front: bool,
+    @builtin(position) frag_coord: vec4<f32>,
+    #import bevy_pbr::mesh_vertex_output
+};
 
 @group(1) @binding(0)
 var<uniform> material: ParallaxMaterial;
@@ -48,17 +53,10 @@ var height_map_texture: texture_2d<f32>;
 @group(1) @binding(12)
 var height_map_sampler: sampler;
 
-struct FragmentInput {
-    @builtin(front_facing) is_front: bool,
-    @builtin(position) frag_coord: vec4<f32>,
-    #import bevy_pbr::mesh_vertex_output
-};
-
 
 // NOTE: This ensures that the world_normal is normalized and if
 // vertex tangents and normal maps then normal mapping may be applied.
 #ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
 fn prepare_normal_parallax(
     standard_material_flags: u32,
     world_normal: vec3<f32>,
@@ -93,7 +91,6 @@ fn prepare_normal_parallax(
 
     return N;
 }
-#endif
 #else
 fn prepare_normal(
     standard_material_flags: u32,
@@ -108,45 +105,29 @@ fn prepare_normal(
 }
 #endif
 
-#ifdef VERTEX_TANGENTS
-#ifndef PARALLAXMATERIAL_NORMAL_MAP
-fn prepare_normal_parallax(
-    standard_material_flags: u32,
-    world_normal: vec3<f32>,
-    is_front: bool,
-) -> vec3<f32> {
-    var N: vec3<f32> = normalize(world_normal);
-    if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_DOUBLE_SIDED_BIT) != 0u) {
-        if (!is_front) { N = -N; }
-    }
-    return N;
-}
-#endif
-#endif
 
-fn parallaxed_texture(
+fn parallaxed_uv(
     height_depth: f32,
+    max_layers: f32,
     uv: vec2<f32>,
     // The vector from camera to the surface of material
     V: vec3<f32>,
 ) -> vec3<f32> {
-    let NUM_SEARCHES: i32 = 5;
-
     // Steep parallax mapping
+    // ======================
     // split the height map into `num_layers` layers,
     // When V hits the surface of object (excluding displacement),
     // if not bellow or on surface including displacement (textureSample), then
     // look forward (-= dtex) according to V and distance between hit surface and
     // height map surface, repeat until bellow surface.
-    
+    //
     // where `num_layers` is selected smartly between `min_layers` and
     // `max_layers` according to the steepness of V.
     let min_layers = 2.0;
-    let max_layers = 25.0;
     let num_layers = mix(max_layers, min_layers, abs(dot(vec3<f32>(0.0, 0.0, 1.0), V)));
     let layer_height = 1.0 / num_layers;
-    var current_layer_height = 0.0;
     let dtex = height_depth * V.xy / V.z / num_layers;
+    var current_layer_height = 0.0;
     var current_texture_coords = uv;
     var height_from_texture = textureSample(
         height_map_texture,
@@ -163,11 +144,15 @@ fn parallaxed_texture(
         ).r;
     }
     
+#ifdef RELIEF_MAPPING
     // Relief mapping
+    // ==============
     // "refine" the rough result from the steep parallax mapping
     // with a binary search between the layer selected by steep parallax
     // and next one of point closest to height map surface.
     // This eliminates the jaggy step artifacts from steep parallax
+    let NUM_SEARCHES: i32 = 5;
+
     var dtex = dtex / 2.0;
     var dheight = layer_height / 2.0;
     current_texture_coords += dtex;
@@ -189,7 +174,34 @@ fn parallaxed_texture(
             current_layer_height -= dheight;
         }
     }
-    
+#else    
+    // Parallax Occlusion mapping
+    // ==========================
+    // "refine" steep mapping simply by interpolating between the
+    // previous layer's height and the computed layer height.
+    // Only requires a single lookup, unlike relief mapping, but
+    // may incure artifacts on very steep relief.
+
+    // TODO: there is probably a way to use the sampler instead
+    // of interpolating by hand here.
+    let prev_coords = current_texture_coords + dtex;
+    let next_height = height_from_texture - current_layer_height;
+    let prev_height =  textureSample(
+        height_map_texture,
+        height_map_sampler,
+        prev_coords
+    ).r;
+    let prev_height = prev_height - current_layer_height + layer_height;
+    let weight = next_height / (next_height - prev_height);
+    let current_texture_coords =
+        weight * prev_coords
+        + (1.0 - weight) * current_texture_coords;
+
+    let current_layer_height = current_layer_height
+        + weight * prev_height
+        + (1.0 - weight) * next_height;
+#endif
+
     return vec3<f32>(current_texture_coords, current_layer_height);
 }
 
@@ -197,7 +209,7 @@ fn parallaxed_texture(
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let is_orthographic = view.projection[3].w == 1.0;
     let V = calculate_view(in.world_position, is_orthographic);
-    let uv =  parallaxed_texture(material.height_depth, in.uv, V);
+    let uv =  parallaxed_uv(material.height_depth, material.max_height_layers, in.uv, V);
     let height_depth = uv.z;
     let uv = uv.xy;
     var output_color: vec4<f32> = material.base_color;
@@ -255,10 +267,8 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
             in.world_normal,
             in.is_front,
 #ifdef VERTEX_TANGENTS
-#ifdef PARALLAXMATERIAL_NORMAL_MAP
             in.world_tangent,
             uv,
-#endif
 #endif
         );
         pbr_input.V = V;

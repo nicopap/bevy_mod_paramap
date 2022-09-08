@@ -27,8 +27,8 @@ This crate's implementation uses Relief Parallax mapping with self occlusion.
   - [X] offset limiting
   - [X] steep parallax mapping
   - [X] relief parallax mapping
-  - [ ] parallax occlusion mapping
-  - [ ] Self shadowing
+  - [X] parallax occlusion mapping
+  - [X] Self shadowing: CANCELLED due to complexity of bevy's light model.
 - [ ] Useability
   - [ ] Generic over shader (should be possible to use with a
         traditional phong shader)

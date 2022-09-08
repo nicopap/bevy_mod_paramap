@@ -51,7 +51,7 @@ fn setup(
 ) {
     // Camera
     cmd.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(1.5, 1.5, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
@@ -93,9 +93,13 @@ fn setup(
     cmd.spawn_bundle(MaterialMeshBundle {
         mesh: meshes.add(cube),
         material: mats.add(ParallaxMaterial {
+            perceptual_roughness: 0.1,
             base_color_texture: Some(assets.load("paramap_color.jpg")),
-            normal_map_texture: Some(assets.load("paramap_normal.jpg")),
+            normal_map_texture: assets.load("paramap_normal.jpg"),
             height_map: assets.load("paramap_bump.jpg"),
+            height_depth: 0.2,
+            relief_mapping: true,
+            max_height_layers: 64.0,
             ..default()
         }),
         ..default()

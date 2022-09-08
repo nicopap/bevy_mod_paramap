@@ -31,7 +31,7 @@ impl From<&'_ ParallaxMaterial> for StandardMaterial {
             metallic: mat.metallic,
             metallic_roughness_texture: opt_clone_weak(&mat.metallic_roughness_texture),
             reflectance: mat.reflectance,
-            normal_map_texture: opt_clone_weak(&mat.normal_map_texture),
+            normal_map_texture: Some(mat.normal_map_texture.clone_weak()),
             flip_normal_map_y: mat.flip_normal_map_y,
             occlusion_texture: opt_clone_weak(&mat.occlusion_texture),
             double_sided: mat.double_sided,
@@ -49,15 +49,15 @@ impl From<&'_ ParallaxMaterial> for StandardMaterial {
 /// [`StandardMaterialKey`]: bevy::pbr::StandardMaterialKey
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ParallaxMaterialKey {
-    normal_map: bool,
+    relief_mapping: bool,
     cull_mode: Option<Face>,
 }
 impl From<&'_ ParallaxMaterial> for ParallaxMaterialKey {
     fn from(material: &ParallaxMaterial) -> Self {
-        dbg!(ParallaxMaterialKey {
-            normal_map: material.normal_map_texture.is_some(),
+        ParallaxMaterialKey {
+            relief_mapping: material.relief_mapping,
             cull_mode: material.cull_mode,
-        })
+        }
     }
 }
 
@@ -85,6 +85,11 @@ pub struct ParallaxMaterialUniform {
     pub alpha_cutoff: f32,
     /// The depth of the height map.
     pub height_depth: f32,
+    /// In how many layers to split the height maps for Steep parallax mapping.
+    ///
+    /// If your `height_depth` is >0.1 and you are seeing jaggy edges,
+    /// increase this value. However, this incures a performance cost.
+    pub max_height_layers: f32,
 }
 
 impl AsBindGroupShaderType<ParallaxMaterialUniform> for ParallaxMaterial {
@@ -101,6 +106,7 @@ impl AsBindGroupShaderType<ParallaxMaterialUniform> for ParallaxMaterial {
             flags: standard_uniform.flags,
             alpha_cutoff: standard_uniform.alpha_cutoff,
             height_depth: self.height_depth,
+            max_height_layers: self.max_height_layers,
         }
     }
 }
@@ -178,7 +184,6 @@ pub struct ParallaxMaterial {
     ///
     /// # Notes
     ///
-    ///
     /// Normal mapping with `StandardMaterial` and the core bevy PBR shaders requires:
     /// - A normal map texture
     /// - Vertex UVs
@@ -193,7 +198,7 @@ pub struct ParallaxMaterial {
     /// [`Mesh::generate_tangents`]: bevy_render::mesh::Mesh::generate_tangents
     #[texture(9)]
     #[sampler(10)]
-    pub normal_map_texture: Option<Handle<Image>>,
+    pub normal_map_texture: Handle<Image>,
 
     /// Normal map textures authored for DirectX have their y-component flipped. Set this to flip
     /// it to right-handed conventions.
@@ -254,7 +259,21 @@ pub struct ParallaxMaterial {
     pub height_map: Handle<Image>,
 
     /// How deep the offset introduced by the height map should be.
+    ///
+    /// Default is 0.1, anything over that value may be incure performance and
+    /// artifact penalties. Lowering the value makes the
     pub height_depth: f32,
+
+    /// Whether to use a more accurate and more expensive algorithm.
+    pub relief_mapping: bool,
+
+    /// In how many layers to split the height maps for Steep parallax mapping.
+    ///
+    /// If your `height_depth` is >0.1 and you are seeing jaggy edges,
+    /// increase this value. However, this incures a performance cost.
+    ///
+    /// Default is 16.0.
+    pub max_height_layers: f32,
 }
 impl Default for ParallaxMaterial {
     fn default() -> Self {
@@ -268,7 +287,7 @@ impl Default for ParallaxMaterial {
             metallic_roughness_texture: None,
             reflectance: 0.5,
             occlusion_texture: None,
-            normal_map_texture: None,
+            normal_map_texture: Handle::default(),
             flip_normal_map_y: false,
             double_sided: false,
             cull_mode: Some(Face::Back),
@@ -277,6 +296,8 @@ impl Default for ParallaxMaterial {
             depth_bias: 0.0,
             height_map: Handle::default(),
             height_depth: 0.1,
+            relief_mapping: false,
+            max_height_layers: 16.0,
         }
     }
 }
@@ -287,17 +308,13 @@ impl Material for ParallaxMaterial {
         _layout: &MeshVertexBufferLayout,
         key: MaterialPipelineKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
-        if key.bind_group_data.normal_map {
-            descriptor
-                .fragment
-                .as_mut()
-                .unwrap()
-                .shader_defs
-                .push(String::from("PARALLAXMATERIAL_NORMAL_MAP"));
+        let defs = &mut descriptor.fragment.as_mut().unwrap().shader_defs;
+        if key.bind_group_data.relief_mapping {
+            defs.push(String::from("RELIEF_MAPPING"));
         }
         descriptor.primitive.cull_mode = key.bind_group_data.cull_mode;
         if let Some(label) = &mut descriptor.label {
-            *label = format!("pbr_{}", *label).into();
+            *label = format!("parallax_{}", *label).into();
         }
         Ok(())
     }
