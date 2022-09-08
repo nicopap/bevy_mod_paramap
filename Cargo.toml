@@ -1,0 +1,20 @@
+[package]
+name = "bevy_mod_paramap"
+authors = ["Nicola Papale"]
+description = "A Parallax occlusion shader for the bevy game engine"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["bevy", "graphics", "3d"]
+categories = ["game-development"]
+repository = "https://github.com/nicopap/bevy_mod_paramap"
+exclude = ["assets", ".github"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.8", default-features = false, features = [ "render", "bevy_asset" ] }
+anyhow = { version = "1.0", default-features = false }
+
+[dev-dependencies]
+bevy = { version = "0.8", features = ["jpeg"] }
+bevy-inspector-egui = "0.12"
