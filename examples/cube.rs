@@ -139,9 +139,9 @@ fn setup(
         mesh: meshes.add(cube),
         material: mats.add(ParallaxMaterial {
             perceptual_roughness: 0.5,
-            base_color_texture: Some(assets.load("paramap_color.jpg")),
-            normal_map_texture: assets.load("paramap_normal.jpg"),
-            height_map: assets.load("paramap_bump.jpg"),
+            base_color_texture: Some(assets.load("cube/paramap_color.jpg")),
+            normal_map_texture: assets.load("cube/paramap_normal.jpg"),
+            height_map: assets.load("cube/paramap_bump.jpg"),
             height_depth: 0.1,
             algorithm: ParallaxAlgo::ReliefMapping,
             max_height_layers: 64.0,

@@ -6,6 +6,7 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
 use bevy::{
+    asset::load_internal_asset,
     pbr::{MaterialPipeline, MaterialPipelineKey, StandardMaterialUniform},
     prelude::*,
     reflect::TypeUuid,
@@ -18,6 +19,10 @@ use bevy::{
         },
     },
 };
+
+/// The shader handle for "parallax_map.wgsl".
+const PARALLAX_MAPPING_SHADER_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9592100656503623734);
 
 impl From<&'_ ParallaxMaterial> for StandardMaterial {
     fn from(mat: &'_ ParallaxMaterial) -> Self {
@@ -349,7 +354,7 @@ impl Material for ParallaxMaterial {
     }
 
     fn fragment_shader() -> ShaderRef {
-        "parallax_map.wgsl".into()
+        PARALLAX_MAPPING_SHADER_HANDLE.typed::<Shader>().into()
     }
 
     #[inline]
@@ -367,6 +372,12 @@ impl Material for ParallaxMaterial {
 pub struct ParallaxMaterialPlugin;
 impl Plugin for ParallaxMaterialPlugin {
     fn build(&self, app: &mut App) {
+        load_internal_asset!(
+            app,
+            PARALLAX_MAPPING_SHADER_HANDLE,
+            "parallax_map.wgsl",
+            Shader::from_wgsl
+        );
         app.add_plugin(MaterialPlugin::<ParallaxMaterial>::default());
     }
 }
