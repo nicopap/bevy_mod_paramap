@@ -38,9 +38,13 @@ cargo run --example <example_name> --features "inspector-def"
   \
   You can orbit the earth by holding down the right mouse button, and zoom
   in/out with the mouse wheel.
+
+https://user-images.githubusercontent.com/26321040/189361740-1a0876d2-9b39-49f3-a8cb-8837601b5b39.mp4
+
 - [`cube`]: A spinning cube with a parallaxed material in a basic 3d scene,
   mouse left click to switch point of view.
 
+https://user-images.githubusercontent.com/26321040/189361802-3db6aa98-fa7f-4440-b5a7-20d73a36ac23.mp4
   
 ### Literature
 
