@@ -23,6 +23,25 @@ may opt into using Relief Mapping. By default, [`ParallaxMaterial`] uses the
 Parallax Occlusion Mapping (POM) method. (see the shader source code for
 explanation on what the algorithms do)
 
+### Examples
+
+This repo contains two examples. to modify [`ParallaxMaterial`] values
+dynamically at run time, add the `inspector-def` feature flag.
+
+```bash
+cargo run --example <example_name> --features "inspector-def"
+```
+
+- [`earth3d`]: a spinning view of the earth. Takes advantage of height map,
+  but also of all the bevy PBR fields. This a good demonstration of bevy's
+  capabilities.
+  \
+  You can orbit the earth by holding down the right mouse button, and zoom
+  in/out with the mouse wheel.
+- [`cube`]: A spinning cube with a parallaxed material in a basic 3d scene,
+  mouse left click to switch point of view.
+
+  
 ### Literature
 
 The code is basically copied from the [sunblackcat] implementation linked
@@ -50,21 +69,37 @@ for a small opensource crate (unless you want to pay me).
     - <https://forums.unrealengine.com/t/invert-normal-to-height/145496>
     - <https://houdinigubbins.wordpress.com/2019/08/09/from-normal-to-height/>
     - <https://stannum.io/blog/0IwyJ->
-    - Search keywords are a bit silly, since search engines use a "bag of word" models and will
-      just spit out the ten thousand "height map to normal map" tutorial, while leaving out what
-      I actually mean, I found that "invert displacement map from normal map" gave satisfactory
-      results on ddg. (also "displacement map" gives much better quality results than "height map")
+    - Search keywords are a bit silly, I found that "invert displacement map from normal map" gave
+      satisfactory results on ddg.
 
 ## License
 
-Copyright © 2022 Nicola Papale
+Earth images in `assets/earth` are public domain and taken from Wikimedia. I edited them myself, you
+are free to re-use the edited version however you want without restrictions.
+
+- [height map]: `elevation_water.png` and `elevation_surface.png` adjust the values to highlight
+  different topological features of earth, the `normal_map.jpg` is also derived from it.
+- [albedo] (aka base color) is a scalled-down version of the 2002 Nasa blue marble earth satellite
+  view using a equirectangular projection. `metallic_roughness.png` and `base_color.jpg` are derived
+  from that image.
+- [emissive texture] is from the 2012 Nasa blue marble project. It's a night time satellite view of
+  earth.
+
+Copyright of code and assets go to their respective authors.
+
+Original code is copyright © 2022 Nicola Papale
 
 This software is licensed under Apache 2.0.
 
 
 [parallax mapping]: https://en.wikipedia.org/wiki/Parallax_mapping
 [parallax occlusion mapping]: https://en.wikipedia.org/wiki/Parallax_occlusion_mapping
-[`ParallaxMaterial`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/struct.ParallaxMaterial.html
 [sunblackcat]: https://web.archive.org/web/20150419215321/http://sunandblackcat.com/tipFullView.php?l=eng&topicid=28
+[height map]: https://commons.wikimedia.org/wiki/File:Earth_dry_elevation.png
+[albedo]: https://commons.wikimedia.org/wiki/File:Blue_Marble_2002_bg21600.png
+[emissive texture]: https://commons.wikimedia.org/wiki/File:Composite_map_of_the_world_2012.jpg
+[`ParallaxMaterial`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/struct.ParallaxMaterial.html
 [`algorithm`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/struct.ParallaxMaterial.html#algorithm
 [`ParallaxAlgo`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/enum.ParallaxAlgo.html
+[`cube`]: https://github.com/nicopap/bevy_mod_paramap/blob/main/examples/cube.rs
+[`earth3d`]: https://github.com/nicopap/bevy_mod_paramap/blob/main/examples/earth3d.rs
