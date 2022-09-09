@@ -99,7 +99,6 @@ fn parallaxed_uv(
     // The vector from camera to the surface of material
     V: vec3<f32>,
 ) -> vec3<f32> {
-let height_depth = 0.2;
     // Steep parallax mapping
     // ======================
     // split the height map into `num_layers` layers,
