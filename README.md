@@ -46,6 +46,16 @@ https://user-images.githubusercontent.com/26321040/189361740-1a0876d2-9b39-49f3-
 
 https://user-images.githubusercontent.com/26321040/189361802-3db6aa98-fa7f-4440-b5a7-20d73a36ac23.mp4
   
+### Bugs and limitations
+
+- This doesn't implement silhouetting, so the meshes's silhouette will not
+  change with the height map
+  - As a result, height maps that are top-heavy should be favored (tree bark, bricks)
+- This doesn't implement self-shadowing, resulting in potentially surprising sharp cutoffs
+  - self-shadowing is described in the [sunblackcat] article, but bevy's lighting system requires
+    handling several light types and multiple light sources at once, which is more complex than
+    I can handle right now.
+  
 ### Literature
 
 The code is basically copied from the [sunblackcat] implementation linked
