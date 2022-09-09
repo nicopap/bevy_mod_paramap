@@ -38,7 +38,7 @@ fn main() {
     .add_startup_system(setup)
     .add_system(pan_orbit_camera)
     .add_system(update_normal)
-    .add_system(default_spin)
+    .add_system(spin)
     .add_system(close_on_esc);
 
     app.run();
@@ -50,14 +50,25 @@ struct Earth;
 #[derive(Component, PartialEq, Inspectable)]
 struct Spin(f32);
 
-fn default_spin(time: Res<Time>, mut query: Query<(&mut Transform, &Spin)>) {
+fn spin(time: Res<Time>, mut query: Query<(&mut Transform, &Spin)>) {
     for (mut transform, spin) in query.iter_mut() {
         transform.rotate_y(spin.0 * time.delta_seconds());
     }
 }
 
+/// Store handle of the earth normal to later modify its format
+/// in [`update_normal`].
 struct Normal(Option<Handle<Image>>);
 
+/// Work around the fact that the default bevy image loader sets the
+/// normal's format to something incompatible with normal shaders.
+/// The format must be one of the `TextureFormat` ending in `*Unorm`.
+///
+/// In this function, we wait until the image is loaded, immediately
+/// change its format and never run the core logic afterward.
+///
+/// Without proper format, it looks like the light source moves as the
+/// earth move, and there is major glitchy artifacts on the poles.
 fn update_normal(
     mut already_ran: Local<bool>,
     mut images: ResMut<Assets<Image>>,
@@ -74,7 +85,6 @@ fn update_normal(
     }
 }
 
-/// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -92,15 +102,29 @@ fn setup(
             transform: Transform::from_rotation(Quat::from_euler(XYZ, -TAU / 4.0, 0.0, TAU / 2.0)),
             mesh: meshes.add(sphere),
             material: materials.add(ParallaxMaterial {
+                // reduce roughness set in the "earth/metallic_roughness.png" file
                 perceptual_roughness: 0.75,
+                // The base color. See README for source.
                 base_color_texture: Some(assets.load("earth/base_color.jpg")),
+                // Since emissive_texture value is multiplied by emissive, we use emissive
+                // to reduce the intensity of the emissive_texture, so that the lights only
+                // show up in earth's penumbra.
                 emissive: Color::rgb_u8(30, 30, 30),
+                // the nighttime visuals. See README for source.
                 emissive_texture: Some(assets.load("earth/emissive.jpg")),
+                // The normal map generated from "earth/elevation_surface.png" using GIMP's
+                // Filters -> Generic -> Normal Map filter.
                 normal_map_texture: normal_handle,
+                // See README for source.
                 height_map: assets.load("earth/elevation_surface.png"),
+                // Set the water to have a low roughness, while surface has high roughness.
                 metallic_roughness_texture: Some(assets.load("earth/metallic_roughness.png")),
+                // How "deep" to displace stuff
                 height_depth: 0.015,
+                // Use the quality algo, for show.
                 algorithm: ParallaxAlgo::ReliefMapping,
+                // This is an unreasonably high value, but since we expect to inspect up close
+                // the surface of the texture, we need to set the max_height_layers pretty high.
                 max_height_layers: 128.0,
                 flip_normal_map_y: false,
                 ..default()
