@@ -26,13 +26,19 @@ fn main() {
     })
     .add_startup_system(setup)
     .add_system(spin_cube)
+    .add_system(handle_camera)
     .add_system(close_on_esc);
 
     app.run();
 }
 
+/// SPIN THE CUBE, SPIN IT! SPINNNN!
 #[derive(Component)]
 struct Spin;
+
+/// The camera, used to move camera on click.
+#[derive(Component)]
+struct OurCamera;
 
 fn spin_cube(time: Res<Time>, mut query: Query<&mut Transform, With<Spin>>) {
     for mut transform in query.iter_mut() {
@@ -40,6 +46,44 @@ fn spin_cube(time: Res<Time>, mut query: Query<&mut Transform, With<Spin>>) {
         transform.rotate_local_x(0.3 * time.delta_seconds());
         transform.rotate_local_z(0.3 * time.delta_seconds());
     }
+}
+
+const CAMERA_POSITIONS: &[Transform] = &[
+    Transform {
+        translation: Vec3::new(1.5, 1.5, 1.5),
+        rotation: Quat::from_xyzw(-0.279, 0.364, 0.115, 0.880),
+        scale: Vec3::ONE,
+    },
+    Transform {
+        translation: Vec3::new(2.4, 0.0, 0.2),
+        rotation: Quat::from_xyzw(0.094, 0.676, 0.116, 0.721),
+        scale: Vec3::ONE,
+    },
+    Transform {
+        translation: Vec3::new(2.4, 2.6, -4.3),
+        rotation: Quat::from_xyzw(0.17055528, 0.9080315, 0.30884093, 0.22584707),
+        scale: Vec3::ONE,
+    },
+    Transform {
+        translation: Vec3::new(-1.0, 0.8, -1.2),
+        rotation: Quat::from_xyzw(-0.004, 0.909, 0.247, -0.335),
+        scale: Vec3::ONE,
+    },
+];
+
+fn handle_camera(
+    mut camera: Query<&mut Transform, With<OurCamera>>,
+    mut current_view: Local<usize>,
+    button: Res<Input<MouseButton>>,
+) {
+    let mut camera = camera.single_mut();
+    if button.just_pressed(MouseButton::Left) {
+        println!("{camera:#?}");
+        *current_view = (*current_view + 1) % CAMERA_POSITIONS.len();
+    }
+    let target = CAMERA_POSITIONS[*current_view];
+    camera.translation = camera.translation.lerp(target.translation, 0.2);
+    camera.rotation = camera.rotation.slerp(target.rotation, 0.2);
 }
 
 fn setup(
@@ -53,7 +97,8 @@ fn setup(
     cmd.spawn_bundle(Camera3dBundle {
         transform: Transform::from_xyz(1.5, 1.5, 1.5).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
-    });
+    })
+    .insert(OurCamera);
 
     // light
     cmd.spawn_bundle(PointLightBundle {
@@ -93,12 +138,12 @@ fn setup(
     cmd.spawn_bundle(MaterialMeshBundle {
         mesh: meshes.add(cube),
         material: mats.add(ParallaxMaterial {
-            perceptual_roughness: 0.1,
+            perceptual_roughness: 0.5,
             base_color_texture: Some(assets.load("paramap_color.jpg")),
             normal_map_texture: assets.load("paramap_normal.jpg"),
             height_map: assets.load("paramap_bump.jpg"),
-            height_depth: 0.2,
-            relief_mapping: true,
+            height_depth: 0.1,
+            algorithm: ParallaxAlgo::ReliefMapping,
             max_height_layers: 64.0,
             ..default()
         }),

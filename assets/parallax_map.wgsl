@@ -56,7 +56,6 @@ var height_map_sampler: sampler;
 
 // NOTE: This ensures that the world_normal is normalized and if
 // vertex tangents and normal maps then normal mapping may be applied.
-#ifdef VERTEX_TANGENTS
 fn prepare_normal_parallax(
     standard_material_flags: u32,
     world_normal: vec3<f32>,
@@ -91,19 +90,6 @@ fn prepare_normal_parallax(
 
     return N;
 }
-#else
-fn prepare_normal(
-    standard_material_flags: u32,
-    world_normal: vec3<f32>,
-    is_front: bool,
-) -> vec3<f32> {
-    var N: vec3<f32> = normalize(world_normal);
-    if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_DOUBLE_SIDED_BIT) != 0u) {
-        if (!is_front) { N = -N; }
-    }
-    return N;
-}
-#endif
 
 
 fn parallaxed_uv(
@@ -113,6 +99,7 @@ fn parallaxed_uv(
     // The vector from camera to the surface of material
     V: vec3<f32>,
 ) -> vec3<f32> {
+let height_depth = 0.2;
     // Steep parallax mapping
     // ======================
     // split the height map into `num_layers` layers,
@@ -134,7 +121,13 @@ fn parallaxed_uv(
         height_map_sampler,
         current_texture_coords
     ).r;
-    while (height_from_texture > current_layer_height) {
+    // In the original, this is a `while`, but
+    // this is a failsafe to avoid locking the dev's computer when they accidentally
+    // cause `height_from_texture <= current_layer_height` to never happen.
+    for (var i: i32 = 0; i < 1000; i++)  {
+        if (height_from_texture <= current_layer_height) {
+            break;
+        }
         current_layer_height += layer_height;
         current_texture_coords -= dtex;
         height_from_texture = textureSample(
@@ -209,7 +202,13 @@ fn parallaxed_uv(
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let is_orthographic = view.projection[3].w == 1.0;
     let V = calculate_view(in.world_position, is_orthographic);
-    let uv =  parallaxed_uv(material.height_depth, material.max_height_layers, in.uv, V);
+    let tangent_V = vec3<f32>(
+        dot(V, in.world_tangent.xyz),
+        dot(V, -cross(in.world_normal, in.world_tangent.xyz) * sign(in.world_tangent.w)),
+        dot(V, in.world_normal),
+    );
+    let tangent_V = normalize(tangent_V);
+    let uv =  parallaxed_uv(material.height_depth, material.max_height_layers, in.uv, tangent_V);
     let height_depth = uv.z;
     let uv = uv.xy;
     var output_color: vec4<f32> = material.base_color;
@@ -266,10 +265,8 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
             material.flags,
             in.world_normal,
             in.is_front,
-#ifdef VERTEX_TANGENTS
             in.world_tangent,
             uv,
-#endif
         );
         pbr_input.V = V;
 

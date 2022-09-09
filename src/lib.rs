@@ -54,8 +54,8 @@ pub struct ParallaxMaterialKey {
 }
 impl From<&'_ ParallaxMaterial> for ParallaxMaterialKey {
     fn from(material: &ParallaxMaterial) -> Self {
-        ParallaxMaterialKey {
-            relief_mapping: material.relief_mapping,
+        Self {
+            relief_mapping: material.algorithm == ParallaxAlgo::ReliefMapping,
             cull_mode: material.cull_mode,
         }
     }
@@ -116,6 +116,9 @@ impl AsBindGroupShaderType<ParallaxMaterialUniform> for ParallaxMaterial {
 ///
 /// `height_map` is a greyscale image representing the height of the object at a given
 /// pixel. Works like the original [`StandardMaterial`] otherwise.
+///
+/// **WARNING**: this material _assumes_ the mesh has tangents set. If your mesh doesn't
+/// have tangents, bad unspecified things will happen.
 ///
 /// [default PBR material]: StandardMaterial
 #[derive(AsBindGroup, Debug, Clone, TypeUuid)]
@@ -195,7 +198,7 @@ pub struct ParallaxMaterial {
     /// If your material has a normal map, but still renders as a flat surface,
     /// make sure your meshes have their tangents set.
     ///
-    /// [`Mesh::generate_tangents`]: bevy_render::mesh::Mesh::generate_tangents
+    /// [`Mesh::generate_tangents`]: bevy::render::mesh::Mesh::generate_tangents
     #[texture(9)]
     #[sampler(10)]
     pub normal_map_texture: Handle<Image>,
@@ -254,26 +257,52 @@ pub struct ParallaxMaterial {
     /// The height map used for parallax mapping.
     ///
     /// Black is the tallest, white deepest.
+    ///
+    /// To improve performance, set your `height_map`'s [`Image::sampler_descriptor`]
+    /// filter mode to `FilterMode::Nearest`, as [this paper] indicates, it improves
+    /// perfs a bit.
+    ///
+    /// [this paper]: https://www.diva-portal.org/smash/get/diva2:831762/FULLTEXT01.pdf
     #[texture(11)]
     #[sampler(12)]
     pub height_map: Handle<Image>,
 
     /// How deep the offset introduced by the height map should be.
     ///
-    /// Default is 0.1, anything over that value may be incure performance and
-    /// artifact penalties. Lowering the value makes the
+    /// Default is 0.1, anything over that value may look very awkward.
+    /// Lower value look less "deep."
     pub height_depth: f32,
 
     /// Whether to use a more accurate and more expensive algorithm.
-    pub relief_mapping: bool,
-
-    /// In how many layers to split the height maps for Steep parallax mapping.
     ///
-    /// If your `height_depth` is >0.1 and you are seeing jaggy edges,
+    /// We recommend that all objects use the same [`ParallaxAlgo`], to avoid
+    /// duplicating and running two shaders.
+    pub algorithm: ParallaxAlgo,
+
+    /// In how many layers to split the height maps for Steep Parallax Mapping.
+    ///
+    /// If your `height_depth` is `>0.1` and you are seeing jaggy edges,
     /// increase this value. However, this incures a performance cost.
     ///
     /// Default is 16.0.
+    ///
+    /// **This must never be less than `2.0`.**
     pub max_height_layers: f32,
+}
+
+/// The algorithm to use beyond the initial Steep parallax mapping
+/// to compute the displacement of a pixel.
+///
+/// See the shader code for implementation details and explanation
+/// of the methods used.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum ParallaxAlgo {
+    /// A simple linear interpolation, consists of a single texture sample.
+    #[default]
+    ParallaxOcclusionMapping,
+    /// An iterative discovery of up to 5 iteration of the best displacement
+    /// value. Each iteration incures a texture sample.
+    ReliefMapping,
 }
 impl Default for ParallaxMaterial {
     fn default() -> Self {
@@ -287,17 +316,17 @@ impl Default for ParallaxMaterial {
             metallic_roughness_texture: None,
             reflectance: 0.5,
             occlusion_texture: None,
-            normal_map_texture: Handle::default(),
+            normal_map_texture: default(),
             flip_normal_map_y: false,
             double_sided: false,
             cull_mode: Some(Face::Back),
             unlit: false,
             alpha_mode: AlphaMode::Opaque,
             depth_bias: 0.0,
-            height_map: Handle::default(),
+            height_map: default(),
             height_depth: 0.1,
-            relief_mapping: false,
             max_height_layers: 16.0,
+            algorithm: default(),
         }
     }
 }

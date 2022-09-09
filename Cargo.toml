@@ -1,7 +1,7 @@
 [package]
 name = "bevy_mod_paramap"
 authors = ["Nicola Papale"]
-description = "A Parallax occlusion shader for the bevy game engine"
+description = "Parallax mapping shaders (relief and POM) for the bevy game engine"
 license = "Apache-2.0"
 readme = "README.md"
 keywords = ["bevy", "graphics", "3d"]
