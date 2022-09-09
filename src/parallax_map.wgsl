@@ -240,7 +240,7 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         var metallic: f32 = material.metallic;
         var perceptual_roughness: f32 = material.perceptual_roughness;
         if ((material.flags & STANDARD_MATERIAL_FLAGS_METALLIC_ROUGHNESS_TEXTURE_BIT) != 0u) {
-            let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
+            let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, uv);
             // Sampling from GLTF standard channels for now
             metallic = metallic * metallic_roughness.b;
             perceptual_roughness = perceptual_roughness * metallic_roughness.g;
