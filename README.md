@@ -41,7 +41,7 @@ for a small opensource crate (unless you want to pay me).
 ### TODO
 
 - [ ] Useability
-  - [ ] bevy-inspector-egui definition (behind compile flag)
+  - [X] bevy-inspector-egui definition (behind compile flag)
   - [ ] Generic over shader (should be possible to use with a
         traditional phong shader)
   - [ ] Conversion methods `from_standard(StandardMaterial, height_map)`

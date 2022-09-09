@@ -5,6 +5,9 @@
 #![deny(missing_docs)]
 #![warn(clippy::pedantic, clippy::nursery)]
 
+#[cfg(feature = "inspector-def")]
+mod inspector_def;
+
 use bevy::{
     asset::load_internal_asset,
     pbr::{MaterialPipeline, MaterialPipelineKey, StandardMaterialUniform},
@@ -300,6 +303,7 @@ pub struct ParallaxMaterial {
 ///
 /// See the shader code for implementation details and explanation
 /// of the methods used.
+#[cfg_attr(feature = "inspector-def", derive(bevy_inspector_egui::Inspectable))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum ParallaxAlgo {
     /// A simple linear interpolation, consists of a single texture sample.
@@ -379,5 +383,11 @@ impl Plugin for ParallaxMaterialPlugin {
             Shader::from_wgsl
         );
         app.add_plugin(MaterialPlugin::<ParallaxMaterial>::default());
+        #[cfg(feature = "inspector-def")]
+        {
+            use bevy_inspector_egui::RegisterInspectable;
+            app.register_inspectable::<ParallaxMaterial>()
+                .register_inspectable::<Handle<ParallaxMaterial>>();
+        }
     }
 }
