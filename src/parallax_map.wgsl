@@ -91,49 +91,52 @@ fn prepare_normal_parallax(
     return N;
 }
 
+fn sample_height(uv: vec2<f32>) -> f32 {
+    return textureSample(height_map_texture, height_map_sampler, uv).r;
+}
 
+// An implementation of parallax mapping, see https://en.wikipedia.org/wiki/Parallax_mapping
+// Code derived from: https://web.archive.org/web/20150419215321/http://sunandblackcat.com/tipFullView.php?l=eng&topicid=28
 fn parallaxed_uv(
-    height_depth: f32,
-    max_layers: f32,
+    depth: f32,
+    max_layer_count: f32,
+    // The original uv
     uv: vec2<f32>,
     // The vector from camera to the surface of material
     V: vec3<f32>,
 ) -> vec3<f32> {
+
     // Steep parallax mapping
     // ======================
-    // split the height map into `num_layers` layers,
+    // split the height map into `layer_count` layers,
     // When V hits the surface of object (excluding displacement),
     // if not bellow or on surface including displacement (textureSample), then
-    // look forward (-= dtex) according to V and distance between hit surface and
+    // look forward (-= delta_uv) according to V and distance between hit surface and
     // height map surface, repeat until bellow surface.
     //
-    // where `num_layers` is selected smartly between `min_layers` and
-    // `max_layers` according to the steepness of V.
-    let min_layers = 2.0;
-    let num_layers = mix(max_layers, min_layers, abs(dot(vec3<f32>(0.0, 0.0, 1.0), V)));
-    let layer_height = 1.0 / num_layers;
-    let dtex = height_depth * V.xy / V.z / num_layers;
+    // where `layer_count` is selected smartly between `min_layer_count` and
+    // `max_layer_count` according to the steepness of V.
+    let MIN_LAYER_COUNT = 2.0;
+    let MAX_ITER = 1000;
+
+    let view_steepness = abs(dot(vec3<f32>(0.0, 0.0, 1.0), V));
+    let layer_count = mix(max_layer_count, MIN_LAYER_COUNT, view_steepness);
+    let layer_height = 1.0 / layer_count;
+    let delta_uv = depth * V.xy / V.z / layer_count;
+    var uv = uv;
+
     var current_layer_height = 0.0;
-    var current_texture_coords = uv;
-    var height_from_texture = textureSample(
-        height_map_texture,
-        height_map_sampler,
-        current_texture_coords
-    ).r;
+    var current_height = sample_height(uv);
     // In the original, this is a `while`, but
     // this is a failsafe to avoid locking the dev's computer when they accidentally
-    // cause `height_from_texture <= current_layer_height` to never happen.
-    for (var i: i32 = 0; i < 1000; i++)  {
-        if (height_from_texture <= current_layer_height) {
+    // cause `current_height <= current_layer_height` to never happen.
+    for (var i: i32 = 0; i < MAX_ITER; i++)  {
+        if (current_height <= current_layer_height) {
             break;
         }
         current_layer_height += layer_height;
-        current_texture_coords -= dtex;
-        height_from_texture = textureSample(
-            height_map_texture,
-            height_map_sampler,
-            current_texture_coords
-        ).r;
+        uv -= delta_uv;
+        current_height = sample_height(uv);
     }
     
 #ifdef RELIEF_MAPPING
@@ -143,27 +146,23 @@ fn parallaxed_uv(
     // with a binary search between the layer selected by steep parallax
     // and next one of point closest to height map surface.
     // This eliminates the jaggy step artifacts from steep parallax
-    let NUM_SEARCHES: i32 = 5;
+    let MAX_STEPS: i32 = 5;
 
-    var dtex = dtex / 2.0;
-    var dheight = layer_height / 2.0;
-    current_texture_coords += dtex;
-    current_layer_height -= dheight;
-    for (var i: i32 = 0; i < NUM_SEARCHES; i++) {
-        dtex = dtex / 2.0;
-        dheight /= 2.0;
-        
-        height_from_texture = textureSample(
-            height_map_texture,
-            height_map_sampler,
-            current_texture_coords
-        ).r;
-        if (height_from_texture > current_layer_height) {
-            current_texture_coords -= dtex;
-            current_layer_height += dheight;
+    var delta_uv = delta_uv / 2.0;
+    var delta_height = layer_height / 2.0;
+    uv += delta_uv;
+    current_layer_height -= delta_height;
+    for (var i: i32 = 0; i < MAX_STEPS; i++) {
+        delta_uv = delta_uv / 2.0;
+        delta_height /= 2.0;
+        current_height = sample_height(uv);
+
+        if (current_height > current_layer_height) {
+            uv -= delta_uv;
+            current_layer_height += delta_height;
         } else {
-            current_texture_coords += dtex;
-            current_layer_height -= dheight;
+            uv += delta_uv;
+            current_layer_height -= delta_height;
         }
     }
 #else    
@@ -176,26 +175,21 @@ fn parallaxed_uv(
 
     // TODO: there is probably a way to use the sampler instead
     // of interpolating by hand here.
-    let prev_coords = current_texture_coords + dtex;
-    let next_height = height_from_texture - current_layer_height;
-    let prev_height =  textureSample(
-        height_map_texture,
-        height_map_sampler,
-        prev_coords
-    ).r;
-    let prev_height = prev_height - current_layer_height + layer_height;
-    let weight = next_height / (next_height - prev_height);
-    let current_texture_coords =
-        weight * prev_coords
-        + (1.0 - weight) * current_texture_coords;
+    let previous_uv = uv + delta_uv;
+    let next_height = current_height - current_layer_height;
+    let previous_height = sample_height(previous_uv) - current_layer_height + layer_height;
+
+    let weight = next_height / (next_height - previous_height);
+
+    let uv = mix(uv, previous_uv, weight);
 
     let current_layer_height = current_layer_height
-        + weight * prev_height
-        + (1.0 - weight) * next_height;
+        + mix(next_height, previous_height, weight);
 #endif
 
-    return vec3<f32>(current_texture_coords, current_layer_height);
+    return vec3<f32>(uv, current_layer_height);
 }
+
 
 @fragment
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
