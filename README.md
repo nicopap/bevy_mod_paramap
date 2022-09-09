@@ -55,6 +55,7 @@ https://user-images.githubusercontent.com/26321040/189361802-3db6aa98-fa7f-4440-
   - self-shadowing is described in the [sunblackcat] article, but bevy's lighting system requires
     handling several light types and multiple light sources at once, which is more complex than
     I can handle right now.
+- The height map is inverted from the more common usage
   
 ### Literature
 
