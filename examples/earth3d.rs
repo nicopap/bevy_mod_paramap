@@ -22,7 +22,7 @@ fn main() {
     })
     // Tell the asset server to watch for asset changes on disk:
     .insert_resource(AssetServerSettings {
-        watch_for_changes: true,
+        watch_for_changes: !cfg!(target_arch = "wasm32"),
         ..default()
     })
     .add_plugins(DefaultPlugins)
@@ -39,9 +39,28 @@ fn main() {
     .add_system(pan_orbit_camera)
     .add_system(update_normal)
     .add_system(spin)
+    .add_system(update_canvas_size)
     .add_system(close_on_esc);
 
     app.run();
+}
+
+fn update_canvas_size(mut windows: ResMut<Windows>) {
+    let window_updated = windows.is_changed();
+    #[cfg(not(target_arch = "wasm32"))]
+    let update_window = || {};
+    #[cfg(target_arch = "wasm32")]
+    let mut update_window = || {
+        let browser_window = web_sys::window()?;
+        let window_width = browser_window.inner_width().ok()?.as_f64()?;
+        let window_height = browser_window.inner_height().ok()?.as_f64()?;
+        let window = windows.get_primary_mut()?;
+        window.set_resolution(window_width as f32, window_height as f32);
+        Some(())
+    };
+    if window_updated {
+        update_window();
+    }
 }
 
 #[derive(Component, PartialEq, Eq)]
@@ -139,7 +158,7 @@ fn setup(
                 intensity: 500.0,
                 ..default()
             },
-            transform: Transform::from_xyz(1.5, 1.5, 1.5),
+            transform: Transform::from_xyz(2.0, 0.5, 2.0),
             ..default()
         })
         .with_children(|cmd| {
@@ -185,37 +204,34 @@ impl Default for PanOrbitCamera {
 
 /// Pan the camera with middle mouse click, zoom with scroll wheel, orbit with right mouse click.
 fn pan_orbit_camera(
-    windows: Res<Windows>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
-    input_mouse: Res<Input<MouseButton>>,
+    mouse: Res<Input<MouseButton>>,
+    keyboard: Res<Input<KeyCode>>,
     mut query: Query<(&mut PanOrbitCamera, &mut Transform, &Projection)>,
 ) {
     // change input mapping for orbit and panning here
-    let orbit_button = MouseButton::Right;
-    let pan_button = MouseButton::Middle;
+    let right = MouseButton::Right;
+    let left = MouseButton::Left;
+    let middle = MouseButton::Middle;
+    let rotation_speed = 0.001;
 
     let mut pan = Vec2::ZERO;
     let mut rotation_move = Vec2::ZERO;
-    let mut scroll = 0.0;
-    let mut orbit_button_changed = false;
+    let wasm = cfg!(target_arch = "wasm32");
+    let scroll = if wasm { 0.01 } else { 1.0 };
+    let scroll = ev_scroll.iter().map(|e| e.y * scroll).sum::<f32>();
 
-    if input_mouse.pressed(orbit_button) {
-        for ev in ev_motion.iter() {
-            rotation_move += ev.delta;
-        }
-    } else if input_mouse.pressed(pan_button) {
-        // Pan only if we're not rotating at the moment
-        for ev in ev_motion.iter() {
-            pan += ev.delta;
-        }
+    let shift_held = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
+    if (mouse.pressed(right) && !wasm) || (shift_held && mouse.pressed(left)) {
+        rotation_move = ev_motion.iter().map(|ev| &ev.delta).sum();
+    } else if mouse.pressed(middle) {
+        pan = ev_motion.iter().map(|ev| &ev.delta).sum();
     }
-    for ev in ev_scroll.iter() {
-        scroll += ev.y;
-    }
-    if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
-        orbit_button_changed = true;
-    }
+
+    let right_press = !wasm && (mouse.just_released(right) || mouse.just_pressed(right));
+    let left_press = shift_held && (mouse.just_released(left) || mouse.just_pressed(left));
+    let orbit_button_changed = right_press || left_press;
 
     for (mut pan_orbit, mut transform, projection) in query.iter_mut() {
         if orbit_button_changed {
@@ -228,16 +244,9 @@ fn pan_orbit_camera(
         let mut any = false;
         if rotation_move.length_squared() > 0.0 {
             any = true;
-            let window = get_primary_window_size(&windows);
-            let delta_x = {
-                let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
-                if pan_orbit.upside_down {
-                    -delta
-                } else {
-                    delta
-                }
-            };
-            let delta_y = rotation_move.y / window.y * std::f32::consts::PI;
+            let sign = if pan_orbit.upside_down { -1.0 } else { 1.0 };
+            let delta_x = sign * rotation_move.x * TAU * rotation_speed;
+            let delta_y = rotation_move.y * TAU * rotation_speed / 2.0;
             let yaw = Quat::from_rotation_y(-delta_x);
             let pitch = Quat::from_rotation_x(-delta_y);
             transform.rotation = yaw * transform.rotation; // rotate around global y axis
@@ -245,9 +254,9 @@ fn pan_orbit_camera(
         } else if pan.length_squared() > 0.0 {
             any = true;
             // make panning distance independent of resolution and FOV,
-            let window = get_primary_window_size(&windows);
             if let Projection::Perspective(projection) = projection {
-                pan *= Vec2::new(projection.fov * projection.aspect_ratio, projection.fov) / window;
+                pan *= Vec2::new(projection.fov * projection.aspect_ratio, projection.fov)
+                    * rotation_speed;
             }
             // translate by local axes
             let right = transform.rotation * Vec3::X * -pan.x;
@@ -258,8 +267,8 @@ fn pan_orbit_camera(
         } else if scroll.abs() > 0.0 {
             any = true;
             pan_orbit.radius -= scroll * pan_orbit.radius * 0.2;
-            // dont allow zoom to reach zero or you get stuck
-            pan_orbit.radius = f32::max(pan_orbit.radius, 0.05);
+            // dont allow zoom to go bellow earth surface
+            pan_orbit.radius = pan_orbit.radius.max(1.1).min(30.0);
         }
 
         if any {
@@ -271,10 +280,4 @@ fn pan_orbit_camera(
                 pan_orbit.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, pan_orbit.radius));
         }
     }
-}
-
-fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
-    let window = windows.get_primary().unwrap();
-    let window = Vec2::new(window.width() as f32, window.height() as f32);
-    window
 }

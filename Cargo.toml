@@ -21,6 +21,27 @@ bevy = { version = "0.8", default-features = false, features = [ "render", "bevy
 anyhow = { version = "1.0", default-features = false }
 bevy-inspector-egui = { version = "0.12", optional = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3.59", default-features = false, features = [
+  "CanvasRenderingContext2d",
+  "Document",
+  "Element",
+  "HtmlCanvasElement",
+  "Window",
+]}
+wasm-bindgen = { version = "0.2.82" }
+
 [dev-dependencies]
-bevy = { version = "0.8", features = ["jpeg"] }
+bevy = { version = "0.8", default-features = false, features = [
+  "jpeg", "render", "bevy_asset", "bevy_winit", "png"
+] }
 bevy-inspector-egui = "0.12"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+bevy = { version = "0.8", default-features = false, features = [ "filesystem_watcher", "x11" ] }
+
+[profile.wasm-release]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+opt-level = "s"
