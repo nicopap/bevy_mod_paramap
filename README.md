@@ -99,6 +99,8 @@ are free to re-use the edited version however you want without restrictions.
   from that image.
 - [emissive texture] is from the 2012 Nasa blue marble project. It's a night time satellite view of
   earth.
+- An alternative higher-quality height map is available at:
+  <https://commons.wikimedia.org/wiki/File:Srtm_ramp2.world.21600x10800.jpg>
 
 Copyright of code and assets go to their respective authors.
 

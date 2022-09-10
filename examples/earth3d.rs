@@ -116,11 +116,11 @@ fn setup(
                 // Filters -> Generic -> Normal Map filter.
                 normal_map_texture: normal_handle,
                 // See README for source.
-                height_map: assets.load("earth/elevation_surface.png"),
+                height_map: assets.load("earth/elevation_surface.jpg"),
                 // Set the water to have a low roughness, while surface has high roughness.
                 metallic_roughness_texture: Some(assets.load("earth/metallic_roughness.png")),
                 // How "deep" to displace stuff
-                height_depth: 0.015,
+                height_depth: 0.01,
                 // Use the quality algo, for show.
                 algorithm: ParallaxAlgo::ReliefMapping,
                 // This is an unreasonably high value, but since we expect to inspect up close
@@ -131,7 +131,7 @@ fn setup(
             }),
             ..default()
         })
-        .insert_bundle((Earth, Spin(0.15), Name::new("Earth")));
+        .insert_bundle((Earth, Spin(0.1), Name::new("Earth")));
 
     commands
         .spawn_bundle(PointLightBundle {
