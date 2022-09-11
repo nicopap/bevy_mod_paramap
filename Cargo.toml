@@ -44,4 +44,4 @@ bevy = { version = "0.8", default-features = false, features = [ "filesystem_wat
 inherits = "release"
 lto = "fat"
 codegen-units = 1
-opt-level = "s"
+opt-level = "z"
