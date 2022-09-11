@@ -39,7 +39,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --examples -- -D warnings
+          args: --examples
       - name: Run clippy for optional features
         uses: actions-rs/clippy-check@v1
         with:
