@@ -51,6 +51,7 @@ fn main() {
     app.run();
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
 fn update_canvas_size(mut windows: ResMut<Windows>) {
     let window_updated = windows.is_changed();
     #[cfg(not(target_arch = "wasm32"))]
@@ -255,8 +256,7 @@ fn pan_orbit_camera(
             let delta_y = rotation_move.y * TAU * rotation_speed / 2.0;
             let yaw = Quat::from_rotation_y(-delta_x);
             let pitch = Quat::from_rotation_x(-delta_y);
-            transform.rotation = yaw * transform.rotation; // rotate around global y axis
-            transform.rotation = transform.rotation * pitch; // rotate around local x axis
+            transform.rotation = yaw * transform.rotation * pitch;
         } else if pan.length_squared() > 0.0 {
             any = true;
             // make panning distance independent of resolution and FOV,
