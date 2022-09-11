@@ -22,7 +22,7 @@ function build_example {
 		exit 1
 	fi
 
-	BINDGEN_EXEC_PATH="${CARGO_HOME:-~/.cargo}/bin/wasm-bindgen"
+	BINDGEN_EXEC_PATH="$(which wasm-bindgen)"
 
 	if [ ! -e "$BINDGEN_EXEC_PATH" ] ; then
 	    echo "Please install wasm-bindgen, cannot generate the wasm output without it"
