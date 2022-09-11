@@ -10,6 +10,12 @@ use bevy::{
 use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
 use bevy_mod_paramap::*;
 
+const NORMAL_MAP: &str = "earth/normal_map.jpg";
+const HEIGHT_MAP: &str = "earth/elevation_surface.jpg";
+const ROUGH_MAP: &str = "earth/metallic_roughness.png";
+const ALBEDO_MAP: &str = "earth/base_color.jpg";
+const EMI_MAP: &str = "earth/emissive.jpg";
+
 fn main() {
     let mut app = App::new();
 
@@ -112,7 +118,7 @@ fn setup(
     assets: Res<AssetServer>,
 ) {
     use bevy::math::EulerRot::XYZ;
-    let normal_handle = assets.load("earth/normal_map.jpg");
+    let normal_handle = assets.load(NORMAL_MAP);
     normal.0 = Some(normal_handle.clone());
     let mut sphere: Mesh = shape::UVSphere::default().into();
     sphere.generate_tangents().unwrap();
@@ -124,20 +130,20 @@ fn setup(
                 // reduce roughness set in the "earth/metallic_roughness.png" file
                 perceptual_roughness: 0.75,
                 // The base color. See README for source.
-                base_color_texture: Some(assets.load("earth/base_color.jpg")),
+                base_color_texture: Some(assets.load(ALBEDO_MAP)),
                 // Since emissive_texture value is multiplied by emissive, we use emissive
                 // to reduce the intensity of the emissive_texture, so that the lights only
                 // show up in earth's penumbra.
                 emissive: Color::rgb_u8(30, 30, 30),
                 // the nighttime visuals. See README for source.
-                emissive_texture: Some(assets.load("earth/emissive.jpg")),
+                emissive_texture: Some(assets.load(EMI_MAP)),
                 // The normal map generated from "earth/elevation_surface.png" using GIMP's
                 // Filters -> Generic -> Normal Map filter.
                 normal_map_texture: normal_handle,
                 // See README for source.
-                height_map: assets.load("earth/elevation_surface.jpg"),
+                height_map: assets.load(HEIGHT_MAP),
                 // Set the water to have a low roughness, while surface has high roughness.
-                metallic_roughness_texture: Some(assets.load("earth/metallic_roughness.png")),
+                metallic_roughness_texture: Some(assets.load(ROUGH_MAP)),
                 // How "deep" to displace stuff
                 height_depth: 0.01,
                 // Use the quality algo, for show.
