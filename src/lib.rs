@@ -23,7 +23,8 @@ use bevy::{
     },
 };
 
-/// The shader handle for "parallax_map.wgsl".
+/// The shader handle for `"parallax_map.wgsl"`.
+#[allow(clippy::unreadable_literal)]
 const PARALLAX_MAPPING_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9592100656503623734);
 
