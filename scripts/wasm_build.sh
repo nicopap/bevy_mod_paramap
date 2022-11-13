@@ -63,7 +63,7 @@ fi
 
 [ ! -e "$OutDir" ] || rm -r "$OutDir"
 
-build_example "earth3d" "--features inspector-def"
+build_example "earth3d" "" # "--features inspector-def"
 build_example "cube" ""
 
 cp scripts/demo_page.html "$OutDir/index.html"

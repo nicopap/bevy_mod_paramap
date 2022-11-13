@@ -1,12 +1,14 @@
 use std::f32::consts::TAU;
 
 use bevy::{
-    asset::AssetServerSettings,
+    asset::AssetPlugin,
+    core_pipeline::bloom::BloomSettings,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     render::{camera::Projection, render_resource::TextureFormat},
-    window::close_on_esc,
+    window::{close_on_esc, WindowPlugin},
 };
+#[cfg(feature = "inspector-def")]
 use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
 use bevy_mod_paramap::*;
 
@@ -19,22 +21,24 @@ const EMI_MAP: &str = "earth/emissive.jpg";
 fn main() {
     let mut app = App::new();
 
-    app.insert_resource(WindowDescriptor {
-        title: "Earth parallax mapping example".into(),
-        width: 756.0,
-        height: 574.0,
-
-        ..default()
-    })
-    // Tell the asset server to watch for asset changes on disk:
-    .insert_resource(AssetServerSettings {
-        watch_for_changes: !cfg!(target_arch = "wasm32"),
-        ..default()
-    })
-    .add_plugins(DefaultPlugins)
-    .add_plugin(WorldInspectorPlugin::new())
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                window: WindowDescriptor {
+                    title: "Earth parallax mapping example".into(),
+                    width: 756.0,
+                    height: 574.0,
+                    ..default()
+                },
+                ..default()
+            })
+            // Tell the asset server to watch for asset changes on disk:
+            .set(AssetPlugin {
+                watch_for_changes: !cfg!(target_arch = "wasm32"),
+                ..default()
+            }),
+    )
     .add_plugin(ParallaxMaterialPlugin)
-    .register_inspectable::<Spin>()
     .insert_resource(AmbientLight {
         color: Color::BLACK,
         brightness: 0.01,
@@ -47,6 +51,9 @@ fn main() {
     .add_system(spin)
     .add_system(update_canvas_size)
     .add_system(close_on_esc);
+    #[cfg(feature = "inspector-def")]
+    app.add_plugin(WorldInspectorPlugin::new())
+        .register_inspectable::<Spin>();
 
     app.run();
 }
@@ -73,7 +80,8 @@ fn update_canvas_size(mut windows: ResMut<Windows>) {
 #[derive(Component, PartialEq, Eq)]
 struct Earth;
 
-#[derive(Component, PartialEq, Inspectable)]
+#[derive(Component, PartialEq)]
+#[cfg_attr(feature = "inspector-def", derive(Inspectable))]
 struct Spin(f32);
 
 fn spin(time: Res<Time>, mut query: Query<(&mut Transform, &Spin)>) {
@@ -84,6 +92,7 @@ fn spin(time: Res<Time>, mut query: Query<(&mut Transform, &Spin)>) {
 
 /// Store handle of the earth normal to later modify its format
 /// in [`update_normal`].
+#[derive(Resource)]
 struct Normal(Option<Handle<Image>>);
 
 /// Work around the fact that the default bevy image loader sets the
@@ -124,7 +133,7 @@ fn setup(
     let mut sphere: Mesh = shape::UVSphere::default().into();
     sphere.generate_tangents().unwrap();
     commands
-        .spawn_bundle(MaterialMeshBundle {
+        .spawn(MaterialMeshBundle {
             transform: Transform::from_rotation(Quat::from_euler(XYZ, -TAU / 4.0, 0.0, TAU / 2.0)),
             mesh: meshes.add(sphere),
             material: materials.add(ParallaxMaterial {
@@ -157,10 +166,10 @@ fn setup(
             }),
             ..default()
         })
-        .insert_bundle((Earth, Spin(0.1), Name::new("Earth")));
+        .insert((Earth, Spin(0.1), Name::new("Earth")));
 
     commands
-        .spawn_bundle(PointLightBundle {
+        .spawn(PointLightBundle {
             point_light: PointLight {
                 intensity: 500.0,
                 ..default()
@@ -173,18 +182,28 @@ fn setup(
                 radius: 0.05,
                 subdivisions: 3,
             };
-            cmd.spawn_bundle(PbrBundle {
+            cmd.spawn(PbrBundle {
                 mesh: meshes.add(sphere.into()),
                 ..default()
             });
         });
 
     commands
-        .spawn_bundle(Camera3dBundle {
+        .spawn(Camera3dBundle {
+            camera: Camera {
+                hdr: true,
+                ..default()
+            },
             transform: Transform::from_xyz(3.9, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         })
-        .insert(PanOrbitCamera::default());
+        .insert((
+            BloomSettings {
+                intensity: 0.1,
+                ..default()
+            },
+            PanOrbitCamera::default(),
+        ));
 }
 
 ///

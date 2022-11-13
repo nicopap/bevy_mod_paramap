@@ -28,8 +28,11 @@ explanation on what the algorithms do)
 This repo contains two examples. to modify [`ParallaxMaterial`] values
 dynamically at run time, add the `inspector-def` feature flag.
 
+(currently `inspector-def` is broken, as `bevy-inspector-egui` is not yet
+compatible with bevy 0.9)
+
 ```bash
-cargo run --example <example_name> --features "inspector-def"
+cargo run --example <example_name> # --features "inspector-def"
 ```
 
 - [`earth3d`]: a spinning view of the earth. Takes advantage of height map,
@@ -87,6 +90,18 @@ for a small opensource crate (unless you want to pay me).
     - Search keywords are a bit silly, I found that "invert displacement map from normal map" gave
       satisfactory results on ddg.
 
+### Change log
+
+* `0.2.0`: Update bevy dependency to `0.9`
+
+### Version Matrix
+
+| bevy | latest supporting version      |
+|------|--------|
+| 0.9  | 0.2.0 |
+| 0.8  | 0.1.0 |
+
+
 ## License
 
 Earth images in `assets/earth` are public domain and taken from Wikimedia. I edited them myself, you
@@ -115,8 +130,8 @@ This software is licensed under Apache 2.0.
 [height map]: https://commons.wikimedia.org/wiki/File:Earth_dry_elevation.png
 [albedo]: https://commons.wikimedia.org/wiki/File:Blue_Marble_2002_bg21600.png
 [emissive texture]: https://commons.wikimedia.org/wiki/File:Composite_map_of_the_world_2012.jpg
-[`ParallaxMaterial`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/struct.ParallaxMaterial.html
-[`algorithm`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/struct.ParallaxMaterial.html#algorithm
-[`ParallaxAlgo`]: https://docs.rs/bevy_mod_paramap/0.1.0/bevy_mod_paramap/enum.ParallaxAlgo.html
+[`ParallaxMaterial`]: https://docs.rs/bevy_mod_paramap/0.2.0/bevy_mod_paramap/struct.ParallaxMaterial.html
+[`algorithm`]: https://docs.rs/bevy_mod_paramap/0.2.0/bevy_mod_paramap/struct.ParallaxMaterial.html#algorithm
+[`ParallaxAlgo`]: https://docs.rs/bevy_mod_paramap/0.2.0/bevy_mod_paramap/enum.ParallaxAlgo.html
 [`cube`]: https://github.com/nicopap/bevy_mod_paramap/blob/main/examples/cube.rs
 [`earth3d`]: https://github.com/nicopap/bevy_mod_paramap/blob/main/examples/earth3d.rs

@@ -263,7 +263,10 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         );
         pbr_input.V = V;
 
-        output_color = tone_mapping(pbr(pbr_input));
+        output_color = pbr(pbr_input);
+        #ifdef TONEMAP_IN_SHADER
+            output_color = tone_mapping(output_color);
+        #endif
     }
 
     return output_color;

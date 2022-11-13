@@ -358,8 +358,13 @@ impl Material for ParallaxMaterial {
         Ok(())
     }
 
+    #[cfg(not(feature = "debug"))]
     fn fragment_shader() -> ShaderRef {
         PARALLAX_MAPPING_SHADER_HANDLE.typed::<Shader>().into()
+    }
+    #[cfg(feature = "debug")]
+    fn fragment_shader() -> ShaderRef {
+        "parallax_map.wgsl".into()
     }
 
     #[inline]
@@ -377,6 +382,7 @@ impl Material for ParallaxMaterial {
 pub struct ParallaxMaterialPlugin;
 impl Plugin for ParallaxMaterialPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(not(feature = "debug"))]
         load_internal_asset!(
             app,
             PARALLAX_MAPPING_SHADER_HANDLE,
