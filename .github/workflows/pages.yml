@@ -47,7 +47,7 @@ jobs:
           override: true
       - name: install wasm-bindgen-cli
         run: |
-          cargo install wasm-bindgen-cli
+          cargo install wasm-bindgen-cli || true
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install pkg-config libx11-dev libasound2-dev libudev-dev binaryen
       - name: Run build script
