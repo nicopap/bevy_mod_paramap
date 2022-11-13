@@ -188,22 +188,22 @@ fn setup(
             });
         });
 
-    commands
-        .spawn(Camera3dBundle {
+    let mut camera = commands.spawn((
+        Camera3dBundle {
             camera: Camera {
-                hdr: true,
+                hdr: !cfg!(target_arch = "wasm32"),
                 ..default()
             },
             transform: Transform::from_xyz(3.9, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
-        })
-        .insert((
-            BloomSettings {
-                intensity: 0.1,
-                ..default()
-            },
-            PanOrbitCamera::default(),
-        ));
+        },
+        PanOrbitCamera::default(),
+    ));
+    #[cfg(not(target_arch = "wasm32"))]
+    camera.insert(BloomSettings {
+        intensity: 0.1,
+        ..default()
+    });
 }
 
 ///
