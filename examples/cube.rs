@@ -1,9 +1,7 @@
 use bevy::{
     prelude::*,
-    window::{close_on_esc, WindowPlugin},
+    window::{close_on_esc, WindowPlugin, WindowResolution},
 };
-#[cfg(feature = "inspector-def")]
-use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_mod_paramap::*;
 
 fn main() {
@@ -12,13 +10,12 @@ fn main() {
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title: "simple cube".into(),
-                    width: 756.0,
-                    height: 574.0,
+                    resolution: WindowResolution::new(756., 574.),
 
                     ..default()
-                },
+                }),
                 ..default()
             })
             // Tell the asset server to watch for asset changes on disk:
@@ -36,8 +33,6 @@ fn main() {
     .add_system(spin_cube)
     .add_system(handle_camera)
     .add_system(close_on_esc);
-    #[cfg(feature = "inspector-def")]
-    app.add_plugin(WorldInspectorPlugin::new());
 
     app.run();
 }
@@ -126,14 +121,20 @@ fn setup(
             subdivisions: 3,
         };
         cmd.spawn(PbrBundle {
-            mesh: meshes.add(sphere.into()),
+            mesh: meshes.add(sphere.try_into().unwrap()),
             ..default()
         });
     });
 
     // Plane
     cmd.spawn(PbrBundle {
-        mesh: meshes.add(shape::Plane { size: 10.0 }.into()),
+        mesh: meshes.add(
+            shape::Plane {
+                size: 10.0,
+                subdivisions: 1,
+            }
+            .into(),
+        ),
         material: std_mats.add(StandardMaterial {
             perceptual_roughness: 0.45,
             reflectance: 0.18,

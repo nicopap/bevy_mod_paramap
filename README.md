@@ -25,14 +25,10 @@ explanation on what the algorithms do)
 
 ### Examples
 
-This repo contains two examples. to modify [`ParallaxMaterial`] values
-dynamically at run time, add the `inspector-def` feature flag.
-
-(currently `inspector-def` is broken, as `bevy-inspector-egui` is not yet
-compatible with bevy 0.9)
+This repo contains two examples.
 
 ```bash
-cargo run --example <example_name> # --features "inspector-def"
+cargo run --example <example_name>
 ```
 
 - [`earth3d`]: a spinning view of the earth. Takes advantage of height map,
@@ -71,6 +67,7 @@ Optimization leads include:
 2. <https://www.gamedevs.org/uploads/quadtree-displacement-mapping-with-height-blending.pdf>
 3. <https://developer.nvidia.com/gpugems/gpugems3/part-i-geometry/chapter-4-next-generation-speedtree-rendering>
 4. <https://old.reddit.com/r/GraphicsProgramming/comments/pgkogk/whatever_happened_to_quadtree_displacement_mapping/>
+5. <https://www.youtube.com/watch?v=8hThP-Yni_o>
 
 Note that (1) says that (2) is slower than POM, while (3) is beyond out-of-scope
 for a small opensource crate (unless you want to pay me).
@@ -78,7 +75,7 @@ for a small opensource crate (unless you want to pay me).
 ### TODO
 
 - [ ] Useability
-  - [X] bevy-inspector-egui definition (behind compile flag)
+  - [X] bevy-inspector-egui definition (~~behind compile flag~~, now derives `Reflect`)
   - [ ] Generic over shader (should be possible to use with a
         traditional phong shader)
   - [ ] Conversion methods `from_standard(StandardMaterial, height_map)`
@@ -89,15 +86,23 @@ for a small opensource crate (unless you want to pay me).
     - <https://stannum.io/blog/0IwyJ->
     - Search keywords are a bit silly, I found that "invert displacement map from normal map" gave
       satisfactory results on ddg.
+  - [ ] Implement insights from (5)
+    - The height map does't need to have the same precision as the normal map
+    - Works better when the height map doesn't have sharp differences
+      (so blur the input image)
+    - [ ] Can reduce even further the number of layers (called "steps" in video)
+          by accounting for distance to position.
 
 ### Change log
 
 * `0.2.0`: Update bevy dependency to `0.9`
+* `0.3.0`: Update bevy dependency to `0.10`
 
 ### Version Matrix
 
 | bevy | latest supporting version      |
 |------|--------|
+| 0.10 | 0.3.0 |
 | 0.9  | 0.2.0 |
 | 0.8  | 0.1.0 |
 

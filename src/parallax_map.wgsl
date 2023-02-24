@@ -1,11 +1,13 @@
 #import bevy_pbr::mesh_view_bindings
-#import bevy_pbr::pbr_types
+#import bevy_pbr::pbr_bindings
 #import bevy_pbr::mesh_bindings
 
 #import bevy_pbr::utils
 #import bevy_pbr::clustered_forward
 #import bevy_pbr::lighting
+#import bevy_pbr::pbr_ambient
 #import bevy_pbr::shadows
+#import bevy_pbr::fog
 #import bevy_pbr::pbr_functions
 
 struct ParallaxMaterial {
@@ -27,31 +29,31 @@ struct FragmentInput {
 };
 
 @group(1) @binding(0)
-var<uniform> material: ParallaxMaterial;
+var<uniform> p_material: ParallaxMaterial;
 @group(1) @binding(1)
-var base_color_texture: texture_2d<f32>;
+var p_base_color_texture: texture_2d<f32>;
 @group(1) @binding(2)
-var base_color_sampler: sampler;
+var p_base_color_sampler: sampler;
 @group(1) @binding(3)
-var emissive_texture: texture_2d<f32>;
+var p_emissive_texture: texture_2d<f32>;
 @group(1) @binding(4)
-var emissive_sampler: sampler;
+var p_emissive_sampler: sampler;
 @group(1) @binding(5)
-var metallic_roughness_texture: texture_2d<f32>;
+var p_metallic_roughness_texture: texture_2d<f32>;
 @group(1) @binding(6)
-var metallic_roughness_sampler: sampler;
+var p_metallic_roughness_sampler: sampler;
 @group(1) @binding(7)
-var occlusion_texture: texture_2d<f32>;
+var p_occlusion_texture: texture_2d<f32>;
 @group(1) @binding(8)
-var occlusion_sampler: sampler;
+var p_occlusion_sampler: sampler;
 @group(1) @binding(9)
-var normal_map_texture: texture_2d<f32>;
+var p_normal_map_texture: texture_2d<f32>;
 @group(1) @binding(10)
-var normal_map_sampler: sampler;
+var p_normal_map_sampler: sampler;
 @group(1) @binding(11)
-var height_map_texture: texture_2d<f32>;
+var p_height_map_texture: texture_2d<f32>;
 @group(1) @binding(12)
-var height_map_sampler: sampler;
+var p_height_map_sampler: sampler;
 
 
 // NOTE: This ensures that the world_normal is normalized and if
@@ -74,7 +76,7 @@ fn prepare_normal_parallax(
             B = -B;
         }
     }
-    var Nt = textureSample(normal_map_texture, normal_map_sampler, uv).rgb;
+    var Nt = textureSample(p_normal_map_texture, p_normal_map_sampler, uv).rgb;
     if ((standard_material_flags & STANDARD_MATERIAL_FLAGS_TWO_COMPONENT_NORMAL_MAP) != 0u) {
         // Only use the xy components and derive z for 2-component normal maps.
         Nt = vec3<f32>(Nt.rg * 2.0 - 1.0, 0.0);
@@ -92,7 +94,7 @@ fn prepare_normal_parallax(
 }
 
 fn sample_height(uv: vec2<f32>) -> f32 {
-    return textureSample(height_map_texture, height_map_sampler, uv).r;
+    return textureSample(p_height_map_texture, p_height_map_sampler, uv).r;
 }
 
 // An implementation of parallax mapping, see https://en.wikipedia.org/wiki/Parallax_mapping
@@ -101,8 +103,8 @@ fn parallaxed_uv(
     depth: f32,
     max_layer_count: f32,
     // The original uv
-    uv: vec2<f32>,
-    // The vector from camera to the surface of material
+    original_uv: vec2<f32>,
+    // The vector from camera to the surface of p_material
     V: vec3<f32>,
 ) -> vec3<f32> {
 
@@ -119,11 +121,13 @@ fn parallaxed_uv(
     let MIN_LAYER_COUNT = 2.0;
     let MAX_ITER = 1000;
 
+    // TODO: account for distance to pixel
+    // (in (5), it's `1 - (V.len() * 0.09)^0.45`) * view_steepness
     let view_steepness = abs(dot(vec3<f32>(0.0, 0.0, 1.0), V));
     let layer_count = mix(max_layer_count, MIN_LAYER_COUNT, view_steepness);
     let layer_height = 1.0 / layer_count;
-    let delta_uv = depth * V.xy / V.z / layer_count;
-    var uv = uv;
+    var delta_uv = depth * V.xy / V.z / layer_count;
+    var uv = original_uv;
 
     var current_layer_height = 0.0;
     var current_height = sample_height(uv);
@@ -148,7 +152,7 @@ fn parallaxed_uv(
     // This eliminates the jaggy step artifacts from steep parallax
     let MAX_STEPS: i32 = 5;
 
-    var delta_uv = delta_uv / 2.0;
+    delta_uv = delta_uv / 2.0;
     var delta_height = layer_height / 2.0;
     uv += delta_uv;
     current_layer_height -= delta_height;
@@ -181,9 +185,9 @@ fn parallaxed_uv(
 
     let weight = next_height / (next_height - previous_height);
 
-    let uv = mix(uv, previous_uv, weight);
+    uv = mix(uv, previous_uv, weight);
 
-    let current_layer_height = current_layer_height
+    current_layer_height = current_layer_height
         + mix(next_height, previous_height, weight);
 #endif
 
@@ -195,46 +199,46 @@ fn parallaxed_uv(
 fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
     let is_orthographic = view.projection[3].w == 1.0;
     let V = calculate_view(in.world_position, is_orthographic);
-    let tangent_V = vec3<f32>(
+    var tangent_V = vec3<f32>(
         dot(V, in.world_tangent.xyz),
         dot(V, -cross(in.world_normal, in.world_tangent.xyz) * sign(in.world_tangent.w)),
         dot(V, in.world_normal),
     );
-    let tangent_V = normalize(tangent_V);
-    let uv =  parallaxed_uv(material.height_depth, material.max_height_layers, in.uv, tangent_V);
-    let height_depth = uv.z;
-    let uv = uv.xy;
-    var output_color: vec4<f32> = material.base_color;
+    tangent_V = normalize(tangent_V);
+    let uv_3d =  parallaxed_uv(p_material.height_depth, p_material.max_height_layers, in.uv, tangent_V);
+    let height_depth = uv_3d.z;
+    let uv = uv_3d.xy;
+    var output_color: vec4<f32> = p_material.base_color;
 #ifdef VERTEX_COLORS
     output_color = output_color * in.color;
 #endif
-    if ((material.flags & STANDARD_MATERIAL_FLAGS_BASE_COLOR_TEXTURE_BIT) != 0u) {
-        let texture_color = textureSample(base_color_texture, base_color_sampler, uv);
+    if ((p_material.flags & STANDARD_MATERIAL_FLAGS_BASE_COLOR_TEXTURE_BIT) != 0u) {
+        let texture_color = textureSample(p_base_color_texture, p_base_color_sampler, uv);
         output_color = output_color * texture_color;
     }
 
     // NOTE: Unlit bit not set means == 0 is true, so the true case is if lit
-    if ((material.flags & STANDARD_MATERIAL_FLAGS_UNLIT_BIT) == 0u) {
+    if ((p_material.flags & STANDARD_MATERIAL_FLAGS_UNLIT_BIT) == 0u) {
         // Prepare a 'processed' StandardMaterial by sampling all textures to resolve
-        // the material members
+        // the p_material members
         var pbr_input: PbrInput;
 
         pbr_input.material.base_color = output_color;
-        pbr_input.material.reflectance = material.reflectance;
-        pbr_input.material.flags = material.flags;
-        pbr_input.material.alpha_cutoff = material.alpha_cutoff;
+        pbr_input.material.reflectance = p_material.reflectance;
+        pbr_input.material.flags = p_material.flags;
+        pbr_input.material.alpha_cutoff = p_material.alpha_cutoff;
 
         // TODO use .a for exposure compensation in HDR
-        var emissive: vec4<f32> = material.emissive;
-        if ((material.flags & STANDARD_MATERIAL_FLAGS_EMISSIVE_TEXTURE_BIT) != 0u) {
-            emissive = vec4<f32>(emissive.rgb * textureSample(emissive_texture, emissive_sampler, uv).rgb, 1.0);
+        var emissive: vec4<f32> = p_material.emissive;
+        if ((p_material.flags & STANDARD_MATERIAL_FLAGS_EMISSIVE_TEXTURE_BIT) != 0u) {
+            emissive = vec4<f32>(emissive.rgb * textureSample(p_emissive_texture, p_emissive_sampler, uv).rgb, 1.0);
         }
         pbr_input.material.emissive = emissive;
 
-        var metallic: f32 = material.metallic;
-        var perceptual_roughness: f32 = material.perceptual_roughness;
-        if ((material.flags & STANDARD_MATERIAL_FLAGS_METALLIC_ROUGHNESS_TEXTURE_BIT) != 0u) {
-            let metallic_roughness = textureSample(metallic_roughness_texture, metallic_roughness_sampler, uv);
+        var metallic: f32 = p_material.metallic;
+        var perceptual_roughness: f32 = p_material.perceptual_roughness;
+        if ((p_material.flags & STANDARD_MATERIAL_FLAGS_METALLIC_ROUGHNESS_TEXTURE_BIT) != 0u) {
+            let metallic_roughness = textureSample(p_metallic_roughness_texture, p_metallic_roughness_sampler, uv);
             // Sampling from GLTF standard channels for now
             metallic = metallic * metallic_roughness.b;
             perceptual_roughness = perceptual_roughness * metallic_roughness.g;
@@ -243,8 +247,8 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         pbr_input.material.perceptual_roughness = perceptual_roughness;
 
         var occlusion: f32 = 1.0;
-        if ((material.flags & STANDARD_MATERIAL_FLAGS_OCCLUSION_TEXTURE_BIT) != 0u) {
-            occlusion = textureSample(occlusion_texture, occlusion_sampler, uv).r;
+        if ((p_material.flags & STANDARD_MATERIAL_FLAGS_OCCLUSION_TEXTURE_BIT) != 0u) {
+            occlusion = textureSample(p_occlusion_texture, p_occlusion_sampler, uv).r;
         }
         pbr_input.occlusion = occlusion;
 
@@ -255,7 +259,7 @@ fn fragment(in: FragmentInput) -> @location(0) vec4<f32> {
         pbr_input.is_orthographic = is_orthographic;
 
         pbr_input.N = prepare_normal_parallax(
-            material.flags,
+            p_material.flags,
             in.world_normal,
             in.is_front,
             in.world_tangent,

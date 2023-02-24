@@ -6,10 +6,8 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     render::{camera::Projection, render_resource::TextureFormat},
-    window::{close_on_esc, WindowPlugin},
+    window::{close_on_esc, WindowPlugin, WindowResolution},
 };
-#[cfg(feature = "inspector-def")]
-use bevy_inspector_egui::{Inspectable, RegisterInspectable, WorldInspectorPlugin};
 use bevy_mod_paramap::*;
 
 const NORMAL_MAP: &str = "earth/normal_map.jpg";
@@ -24,12 +22,12 @@ fn main() {
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
-                window: WindowDescriptor {
+                primary_window: Some(Window {
                     title: "Earth parallax mapping example".into(),
-                    width: 756.0,
-                    height: 574.0,
+                    resolution: WindowResolution::new(756., 574.),
+                    fit_canvas_to_parent: true,
                     ..default()
-                },
+                }),
                 ..default()
             })
             // Tell the asset server to watch for asset changes on disk:
@@ -49,39 +47,17 @@ fn main() {
     .add_system(pan_orbit_camera)
     .add_system(update_normal)
     .add_system(spin)
-    .add_system(update_canvas_size)
     .add_system(close_on_esc);
-    #[cfg(feature = "inspector-def")]
-    app.add_plugin(WorldInspectorPlugin::new())
-        .register_inspectable::<Spin>();
+
+    app.register_type::<Spin>();
 
     app.run();
-}
-
-#[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
-fn update_canvas_size(mut windows: ResMut<Windows>) {
-    let window_updated = windows.is_changed();
-    #[cfg(not(target_arch = "wasm32"))]
-    let update_window = || {};
-    #[cfg(target_arch = "wasm32")]
-    let mut update_window = || {
-        let browser_window = web_sys::window()?;
-        let window_width = browser_window.inner_width().ok()?.as_f64()?;
-        let window_height = browser_window.inner_height().ok()?.as_f64()?;
-        let window = windows.get_primary_mut()?;
-        window.set_resolution(window_width as f32, window_height as f32);
-        Some(())
-    };
-    if window_updated {
-        update_window();
-    }
 }
 
 #[derive(Component, PartialEq, Eq)]
 struct Earth;
 
-#[derive(Component, PartialEq)]
-#[cfg_attr(feature = "inspector-def", derive(Inspectable))]
+#[derive(Component, PartialEq, Reflect)]
 struct Spin(f32);
 
 fn spin(time: Res<Time>, mut query: Query<(&mut Transform, &Spin)>) {
@@ -183,7 +159,7 @@ fn setup(
                 subdivisions: 3,
             };
             cmd.spawn(PbrBundle {
-                mesh: meshes.add(sphere.into()),
+                mesh: meshes.add(sphere.try_into().unwrap()),
                 ..default()
             });
         });

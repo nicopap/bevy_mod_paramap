@@ -8,19 +8,16 @@ keywords = ["bevy", "graphics", "3d"]
 categories = ["game-development"]
 repository = "https://github.com/nicopap/bevy_mod_paramap"
 exclude = ["assets", ".github"]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [features]
 default = []
 debug = []
-# inspector-def = [ "bevy-inspector-egui" ]
-
 
 [dependencies]
-bevy = { version = "0.9", default-features = false, features = [ "render", "bevy_asset" ] }
+bevy = { version = "0.10", default-features = false, features = [ "bevy_render", "bevy_pbr", "bevy_asset" ] }
 anyhow = { version = "1.0", default-features = false }
-# bevy-inspector-egui = { version = "0.14", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3.60", default-features = false, features = [
@@ -33,12 +30,12 @@ web-sys = { version = "0.3.60", default-features = false, features = [
 wasm-bindgen = { version = "0.2.83" }
 
 [dev-dependencies]
-bevy = { version = "0.9", default-features = false, features = [
-  "jpeg", "render", "bevy_asset", "bevy_winit", "png"
+bevy = { version = "0.10", default-features = false, features = [
+  "jpeg", "bevy_render", "bevy_asset", "bevy_winit", "png", "bevy_pbr", "bevy_core_pipeline"
 ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-bevy = { version = "0.9", default-features = false, features = [ "filesystem_watcher", "x11" ] }
+bevy = { version = "0.10", default-features = false, features = [ "filesystem_watcher", "x11", "bevy_pbr" ] }
 
 [profile.wasm-release]
 inherits = "release"

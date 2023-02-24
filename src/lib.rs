@@ -5,9 +5,6 @@
 #![deny(missing_docs)]
 #![warn(clippy::pedantic, clippy::nursery)]
 
-#[cfg(feature = "inspector-def")]
-mod inspector_def;
-
 use bevy::{
     asset::load_internal_asset,
     pbr::{MaterialPipeline, MaterialPipelineKey, StandardMaterialUniform},
@@ -48,6 +45,7 @@ impl From<&'_ ParallaxMaterial> for StandardMaterial {
             unlit: mat.unlit,
             alpha_mode: mat.alpha_mode,
             depth_bias: mat.depth_bias,
+            fog_enabled: mat.fog_enabled,
         }
     }
 }
@@ -130,10 +128,11 @@ impl AsBindGroupShaderType<ParallaxMaterialUniform> for ParallaxMaterial {
 /// have tangents, bad unspecified things will happen.
 ///
 /// [default PBR material]: StandardMaterial
-#[derive(AsBindGroup, Debug, Clone, TypeUuid)]
+#[derive(AsBindGroup, Debug, Clone, TypeUuid, Reflect, FromReflect)]
 #[uuid = "5bc9c7a3-fb25-4202-b91f-bc4c7d300d82"]
 #[bind_group_data(ParallaxMaterialKey)]
 #[uniform(0, ParallaxMaterialUniform)]
+#[reflect(Default, Debug)]
 pub struct ParallaxMaterial {
     /// Doubles as diffuse albedo for non-metallic, specular for metallic and a mix for everything
     /// in between. If used together with a base_color_texture, this is factored into the final
@@ -239,6 +238,7 @@ pub struct ParallaxMaterial {
 
     /// Whether to cull the "front", "back" or neither side of a mesh
     /// defaults to `Face::Back`
+    #[reflect(ignore)]
     pub cull_mode: Option<Face>,
 
     /// Whether to shade this material.
@@ -297,6 +297,9 @@ pub struct ParallaxMaterial {
     ///
     /// **This must never be less than `2.0`.**
     pub max_height_layers: f32,
+
+    /// Whether to enable fog for this material
+    pub fog_enabled: bool,
 }
 
 /// The algorithm to use beyond the initial Steep parallax mapping
@@ -304,8 +307,8 @@ pub struct ParallaxMaterial {
 ///
 /// See the shader code for implementation details and explanation
 /// of the methods used.
-#[cfg_attr(feature = "inspector-def", derive(bevy_inspector_egui::Inspectable))]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, Reflect, FromReflect)]
+#[reflect(Default, Debug)]
 pub enum ParallaxAlgo {
     /// A simple linear interpolation, consists of a single texture sample.
     #[default]
@@ -337,6 +340,7 @@ impl Default for ParallaxMaterial {
             height_depth: 0.1,
             max_height_layers: 16.0,
             algorithm: default(),
+            fog_enabled: true,
         }
     }
 }
@@ -349,7 +353,7 @@ impl Material for ParallaxMaterial {
     ) -> Result<(), SpecializedMeshPipelineError> {
         let defs = &mut descriptor.fragment.as_mut().unwrap().shader_defs;
         if key.bind_group_data.relief_mapping {
-            defs.push(String::from("RELIEF_MAPPING"));
+            defs.push("RELIEF_MAPPING".into());
         }
         descriptor.primitive.cull_mode = key.bind_group_data.cull_mode;
         if let Some(label) = &mut descriptor.label {
@@ -390,11 +394,7 @@ impl Plugin for ParallaxMaterialPlugin {
             Shader::from_wgsl
         );
         app.add_plugin(MaterialPlugin::<ParallaxMaterial>::default());
-        #[cfg(feature = "inspector-def")]
-        {
-            use bevy_inspector_egui::RegisterInspectable;
-            app.register_inspectable::<ParallaxMaterial>()
-                .register_inspectable::<Handle<ParallaxMaterial>>();
-        }
+        app.register_type::<ParallaxMaterial>()
+            .register_type::<ParallaxAlgo>();
     }
 }
